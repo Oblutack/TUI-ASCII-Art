@@ -8,3 +8,4 @@ PyQt6==6.10.0
 rich==14.2.0
 textual==6.6.0
 pyinstaller==6.16.0
+imageio==2.37.2

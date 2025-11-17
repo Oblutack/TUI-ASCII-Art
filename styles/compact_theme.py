@@ -1,4 +1,3 @@
-# styles/compact_theme.py
 """
 Compact Transparent Theme with Custom Color Palette
 Sharp corners, tight spacing, semi-transparent background

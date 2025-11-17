@@ -2,7 +2,6 @@ import sys
 import os
 from pathlib import Path
 
-# Fix paths
 current_dir = Path(__file__).parent
 root_dir = current_dir.parent
 sys.path.insert(0, str(current_dir))
@@ -10,13 +9,14 @@ sys.path.insert(0, str(root_dir))
 
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QTextEdit, QPushButton, QFileDialog, QCheckBox, 
-                             QSlider, QLabel, QFrame)
+                             QSlider, QLabel, QFrame, QProgressBar)
 from PyQt6.QtGui import QFont, QColor, QTextCursor, QPalette
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread
 from rich.text import Text 
 
 from converter import convert_image_to_ascii
 from background import remove_background_from_image
+from gif_animator import GifConverter, GifPlayer
 from styles.compact_theme import COMPACT_THEME, get_compact_font, CompactColors
 
 
@@ -53,6 +53,30 @@ class Worker(QObject):
             self.finished.emit(f"An unexpected error occurred:\n{e}")
 
 
+class GifWorker(QObject):
+    """Worker for GIF conversion in background thread"""
+    progress = pyqtSignal(int, int)
+    finished = pyqtSignal(list, list)
+    error = pyqtSignal(str)
+
+    def __init__(self, gif_path, columns):
+        super().__init__()
+        self.gif_path = gif_path
+        self.columns = columns
+        self.converter = GifConverter()
+
+    def run(self):
+        self.converter.frame_converted.connect(self.progress.emit)
+        self.converter.conversion_error.connect(self.error.emit)
+        
+        frames, delays = self.converter.convert_gif(self.gif_path, self.columns)
+        
+        if frames:
+            self.finished.emit(frames, delays)
+        else:
+            self.error.emit("Failed to convert GIF")
+
+
 class CompactTextEdit(QTextEdit):
     """Compact text display with ANSI support"""
     
@@ -76,18 +100,18 @@ class CompactTextEdit(QTextEdit):
                         continue
                     
                     color_code = int(code_part.split(';')[0])
-                    color = QColor(CompactColors.GRAPE_BRIGHT)  # Default
+                    color = QColor(CompactColors.GRAPE_BRIGHT)
                     
                     if 30 <= color_code <= 37:
                         colors = [
                             CompactColors.TEXT_DIM,
-                            "#d89aa3",  # red
-                            CompactColors.GRAPE_BRIGHT,  # green
-                            "#e0c097",  # yellow
-                            CompactColors.DUSTY_GRAPE,  # blue
-                            "#c5a3d8",  # magenta
-                            CompactColors.GRAPE_LIGHT,  # cyan
-                            CompactColors.TEXT_PRIMARY  # white
+                            "#d89aa3",
+                            CompactColors.GRAPE_BRIGHT,
+                            "#e0c097",
+                            CompactColors.DUSTY_GRAPE,
+                            "#c5a3d8",
+                            CompactColors.GRAPE_LIGHT,
+                            CompactColors.TEXT_PRIMARY
                         ]
                         color = QColor(colors[color_code - 30])
                     
@@ -109,33 +133,41 @@ class MainWindow(QWidget):
         self.setStyleSheet(COMPACT_THEME)
         self.setFont(get_compact_font())
         
-        self.setWindowTitle("ASCII GENERATOR")
-        
-        # Compact window size (50% smaller)
-        self.setGeometry(100, 100, 700, 450)
-        self.setMinimumSize(600, 400)
+        # Window setup
+        self.setWindowTitle("ASCII GENERATOR v1.0 - with GIF Support")
+        self.setGeometry(100, 100, 800, 550)
+        self.setMinimumSize(700, 500)
         
         self.last_ascii_result = None
-        self.dragging = False
-        self.offset = None
+        self.is_gif_mode = False
         
-        # Tight spacing layout
+        # GIF player
+        self.gif_player = GifPlayer()
+        self.gif_player.frame_changed.connect(self.display_frame)
+        
+        # Main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.setSpacing(8)
         self.main_layout.setContentsMargins(10, 10, 10, 10)
         self.setLayout(self.main_layout)
         
-        # Build compact UI
+        # Build UI
         self.create_title_bar()
         self.create_control_panel()
+        self.create_gif_controls()  # NEW
         self.create_display_area()
         
         # Threading
         self.thread = None
         self.worker = None
+        self.gif_thread = None
+        self.gif_worker = None
+        
+        # Hide GIF controls initially
+        self.gif_controls_frame.hide()
 
     def create_title_bar(self):
-        """Compact title bar with drag support"""
+        """Compact title bar"""
         title_frame = QFrame()
         title_frame.setObjectName("titleFrame")
         title_layout = QHBoxLayout()
@@ -145,7 +177,7 @@ class MainWindow(QWidget):
         title_label = QLabel("▌ASCII GENERATOR")
         title_label.setObjectName("titleLabel")
         
-        subtitle_label = QLabel("v1.0")
+        subtitle_label = QLabel("// Image & GIF Converter")
         subtitle_label.setObjectName("subtitleLabel")
         
         title_layout.addWidget(title_label)
@@ -156,7 +188,7 @@ class MainWindow(QWidget):
         self.main_layout.addWidget(title_frame)
 
     def create_control_panel(self):
-        """Super compact control panel"""
+        """Main control panel"""
         control_frame = QFrame()
         control_frame.setObjectName("controlPanel")
         
@@ -164,13 +196,8 @@ class MainWindow(QWidget):
         controls_layout.setSpacing(10)
         controls_layout.setContentsMargins(10, 8, 10, 8)
         
-        # Left box - compact
         left_box = self.create_input_box()
-        
-        # Middle box - compact
         middle_box = self.create_width_box()
-        
-        # Right box - compact
         right_box = self.create_actions_box()
         
         controls_layout.addWidget(left_box, stretch=1)
@@ -180,14 +207,68 @@ class MainWindow(QWidget):
         control_frame.setLayout(controls_layout)
         self.main_layout.addWidget(control_frame)
 
+    def create_gif_controls(self):
+        """GIF playback controls"""
+        self.gif_controls_frame = QFrame()
+        self.gif_controls_frame.setObjectName("controlPanel")
+        
+        layout = QHBoxLayout()
+        layout.setSpacing(8)
+        layout.setContentsMargins(10, 6, 10, 6)
+        
+        # Playback buttons
+        self.play_button = QPushButton("▶ PLAY")
+        self.play_button.setObjectName("loadButton")
+        self.play_button.setMinimumHeight(28)
+        self.play_button.clicked.connect(self.toggle_playback)
+        
+        self.stop_button = QPushButton("■ STOP")
+        self.stop_button.setMinimumHeight(28)
+        self.stop_button.clicked.connect(self.stop_animation)
+        
+        # Speed control
+        speed_label = QLabel("Speed:")
+        self.speed_slider = QSlider(Qt.Orientation.Horizontal)
+        self.speed_slider.setRange(25, 400)  # 0.25x to 4x
+        self.speed_slider.setValue(100)  # 1.0x
+        self.speed_slider.setMinimumWidth(120)
+        self.speed_slider.valueChanged.connect(self.update_speed)
+        
+        self.speed_label = QLabel("1.0x")
+        self.speed_label.setObjectName("valueLabel")
+        self.speed_label.setMinimumWidth(40)
+        
+        # Loop checkbox
+        self.loop_checkbox = QCheckBox("LOOP")
+        self.loop_checkbox.setChecked(True)
+        self.loop_checkbox.toggled.connect(self.gif_player.set_looping)
+        
+        # Frame counter
+        self.frame_label = QLabel("Frame: 0/0")
+        self.frame_label.setStyleSheet(f"color: {CompactColors.TEXT_SECONDARY};")
+        
+        layout.addWidget(self.play_button)
+        layout.addWidget(self.stop_button)
+        layout.addSpacing(10)
+        layout.addWidget(speed_label)
+        layout.addWidget(self.speed_slider)
+        layout.addWidget(self.speed_label)
+        layout.addSpacing(10)
+        layout.addWidget(self.loop_checkbox)
+        layout.addStretch()
+        layout.addWidget(self.frame_label)
+        
+        self.gif_controls_frame.setLayout(layout)
+        self.main_layout.addWidget(self.gif_controls_frame)
+
     def create_input_box(self):
-        """Compact input section"""
+        """Input section"""
         box = QFrame()
         box.setStyleSheet(f"""
             QFrame {{
-                background-color: {CompactColors.VINTAGE_ALPHA};
+                background-color: rgba(65, 63, 84, 255);
                 border: 2px solid {CompactColors.DUSTY_GRAPE};
-                padding: 6px;
+                padding: 8px;
             }}
         """)
         
@@ -200,7 +281,7 @@ class MainWindow(QWidget):
         
         self.load_button = QPushButton("LOAD")
         self.load_button.setObjectName("loadButton")
-        self.load_button.setMinimumHeight(32)
+        self.load_button.setMinimumHeight(34)
         self.load_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.load_button.clicked.connect(self.start_processing)
         
@@ -215,13 +296,13 @@ class MainWindow(QWidget):
         return box
 
     def create_width_box(self):
-        """Compact width control"""
+        """Width control"""
         box = QFrame()
         box.setStyleSheet(f"""
             QFrame {{
-                background-color: {CompactColors.VINTAGE_ALPHA};
+                background-color: rgba(65, 63, 84, 255);
                 border: 2px solid {CompactColors.DUSTY_GRAPE};
-                padding: 6px;
+                padding: 8px;
             }}
         """)
         
@@ -246,7 +327,7 @@ class MainWindow(QWidget):
         self.width_slider = QSlider(Qt.Orientation.Horizontal)
         self.width_slider.setRange(40, 300)
         self.width_slider.setValue(120)
-        self.width_slider.setMinimumHeight(20)
+        self.width_slider.setMinimumHeight(22)
         self.width_slider.valueChanged.connect(self.update_width_label)
         
         layout.addWidget(label)
@@ -257,13 +338,13 @@ class MainWindow(QWidget):
         return box
 
     def create_actions_box(self):
-        """Compact actions"""
+        """Actions"""
         box = QFrame()
         box.setStyleSheet(f"""
             QFrame {{
-                background-color: {CompactColors.VINTAGE_ALPHA};
+                background-color: rgba(65, 63, 84, 255);
                 border: 2px solid {CompactColors.DUSTY_GRAPE};
-                padding: 6px;
+                padding: 8px;
             }}
         """)
         
@@ -277,13 +358,13 @@ class MainWindow(QWidget):
         self.export_button = QPushButton("SAVE")
         self.export_button.setObjectName("exportButton")
         self.export_button.setDisabled(True)
-        self.export_button.setMinimumHeight(32)
+        self.export_button.setMinimumHeight(34)
         self.export_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.export_button.clicked.connect(self.on_export)
         
         self.quit_button = QPushButton("QUIT")
         self.quit_button.setObjectName("quitButton")
-        self.quit_button.setMinimumHeight(32)
+        self.quit_button.setMinimumHeight(34)
         self.quit_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.quit_button.clicked.connect(self.close)
         
@@ -295,7 +376,7 @@ class MainWindow(QWidget):
         return box
 
     def create_display_area(self):
-        """Compact display"""
+        """Display area"""
         display_frame = QFrame()
         display_frame.setObjectName("displayPanel")
         
@@ -307,9 +388,16 @@ class MainWindow(QWidget):
         output_label.setObjectName("sectionLabel")
         
         self.text_area = CompactTextEdit()
-        self.text_area.setPlaceholderText("// READY")
+        self.text_area.setPlaceholderText("// READY\n// Load an image or GIF to begin")
+        
+        # Progress bar for GIF conversion
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setMinimumHeight(20)
+        self.progress_bar.setTextVisible(True)
+        self.progress_bar.hide()
         
         display_layout.addWidget(output_label)
+        display_layout.addWidget(self.progress_bar)
         display_layout.addWidget(self.text_area)
         
         display_frame.setLayout(display_layout)
@@ -318,36 +406,133 @@ class MainWindow(QWidget):
     def update_width_label(self, value):
         self.width_label.setText(str(value))
 
+    def update_speed(self, value):
+        speed = value / 100.0
+        self.speed_label.setText(f"{speed:.1f}x")
+        self.gif_player.set_speed(speed)
+
     def start_processing(self):
+        """Load image or GIF"""
         file_path, _ = QFileDialog.getOpenFileName(
             self, 
-            "OPEN", 
+            "OPEN IMAGE/GIF", 
             "", 
-            "Images (*.png *.jpg *.jpeg *.bmp *.gif)"
+            "Images (*.png *.jpg *.jpeg *.bmp);;GIF (*.gif);;All Files (*.*)"
         )
         
-        if file_path:
-            self.load_button.setDisabled(True)
-            self.export_button.setDisabled(True)
-            self.text_area.clear()
-            self.text_area.insertPlainText("// PROCESSING...")
+        if not file_path:
+            return
+        
+        if file_path.lower().endswith('.gif'):
+            self.load_gif(file_path)
+        else:
+            self.load_image(file_path)
 
-            columns = self.width_slider.value()
-            remove_bg = self.bg_checkbox.isChecked()
+    def load_image(self, file_path):
+        """Load static image"""
+        self.is_gif_mode = False
+        self.gif_controls_frame.hide()
+        self.gif_player.pause()
+        
+        self.load_button.setDisabled(True)
+        self.export_button.setDisabled(True)
+        self.text_area.clear()
+        self.text_area.insertPlainText("// PROCESSING IMAGE...")
 
-            self.thread = QThread()
-            self.worker = Worker(file_path=file_path, columns=columns, remove_bg=remove_bg)
-            self.worker.moveToThread(self.thread)
-            
-            self.thread.started.connect(self.worker.run)
-            self.worker.finished.connect(self.update_text_area)
-            self.worker.finished.connect(self.thread.quit)
-            self.worker.finished.connect(self.worker.deleteLater)
-            self.thread.finished.connect(self.thread.deleteLater)
-            
-            self.thread.start()
+        columns = self.width_slider.value()
+        remove_bg = self.bg_checkbox.isChecked()
+
+        self.thread = QThread()
+        self.worker = Worker(file_path=file_path, columns=columns, remove_bg=remove_bg)
+        self.worker.moveToThread(self.thread)
+        
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.update_text_area)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        
+        self.thread.start()
+
+    def load_gif(self, file_path):
+        """Load and convert GIF"""
+        self.is_gif_mode = True
+        self.gif_controls_frame.show()
+        
+        self.load_button.setDisabled(True)
+        self.export_button.setDisabled(True)
+        self.text_area.clear()
+        self.text_area.insertPlainText("// CONVERTING GIF...\n// This may take a moment...")
+        
+        self.progress_bar.show()
+        self.progress_bar.setValue(0)
+
+        columns = self.width_slider.value()
+
+        self.gif_thread = QThread()
+        self.gif_worker = GifWorker(file_path, columns)
+        self.gif_worker.moveToThread(self.gif_thread)
+        
+        self.gif_thread.started.connect(self.gif_worker.run)
+        self.gif_worker.progress.connect(self.update_gif_progress)
+        self.gif_worker.finished.connect(self.on_gif_converted)
+        self.gif_worker.error.connect(self.on_gif_error)
+        self.gif_worker.finished.connect(self.gif_thread.quit)
+        self.gif_worker.finished.connect(self.gif_worker.deleteLater)
+        self.gif_thread.finished.connect(self.gif_thread.deleteLater)
+        
+        self.gif_thread.start()
+
+    def update_gif_progress(self, current, total):
+        """Update GIF conversion progress"""
+        progress = int((current / total) * 100)
+        self.progress_bar.setValue(progress)
+        self.progress_bar.setFormat(f"Converting: {current}/{total} frames")
+
+    def on_gif_converted(self, frames, delays):
+        """GIF conversion complete"""
+        self.progress_bar.hide()
+        self.gif_player.load_animation(frames, delays)
+        self.load_button.setDisabled(False)
+        self.export_button.setDisabled(False)
+        
+        total_frames = len(frames)
+        self.frame_label.setText(f"Frame: 1/{total_frames}")
+        
+        self.text_area.append_ansi_text(frames[0])
+        
+        self.gif_player.play()
+        self.play_button.setText("⏸ PAUSE")
+
+    def on_gif_error(self, error_msg):
+        """GIF conversion error"""
+        self.progress_bar.hide()
+        self.text_area.clear()
+        self.text_area.insertPlainText(f"// ERROR\n// {error_msg}")
+        self.load_button.setDisabled(False)
+
+    def display_frame(self, frame_text, frame_number):
+        """Display animation frame"""
+        self.text_area.append_ansi_text(frame_text)
+        total = self.gif_player.get_frame_count()
+        self.frame_label.setText(f"Frame: {frame_number + 1}/{total}")
+
+    def toggle_playback(self):
+        """Toggle play/pause"""
+        if self.gif_player.is_playing:
+            self.gif_player.pause()
+            self.play_button.setText("▶ PLAY")
+        else:
+            self.gif_player.play()
+            self.play_button.setText("⏸ PAUSE")
+
+    def stop_animation(self):
+        """Stop animation"""
+        self.gif_player.stop()
+        self.play_button.setText("▶ PLAY")
 
     def update_text_area(self, ascii_result: str):
+        """Update display (for static images)"""
         self.last_ascii_result = ascii_result
         self.text_area.append_ansi_text(ascii_result)
         self.load_button.setDisabled(False)
@@ -356,12 +541,18 @@ class MainWindow(QWidget):
             self.export_button.setDisabled(False)
 
     def on_export(self):
+        """Export ASCII art"""
+        if self.is_gif_mode:
+            # TODO: 
+            self.text_area.insertPlainText("\n\n// GIF export coming soon!")
+            return
+        
         if not self.last_ascii_result:
             return
             
         file_path, _ = QFileDialog.getSaveFileName(
             self, 
-            "SAVE", 
+            "SAVE ASCII", 
             "ascii.txt", 
             "Text (*.txt)"
         )
@@ -375,19 +566,6 @@ class MainWindow(QWidget):
                 self.text_area.insertPlainText(f"\n\n// SAVED: {file_path}")
             except Exception as e:
                 self.text_area.insertPlainText(f"\n\n// ERROR: {e}")
-
-    # Drag window support (frameless)
-    def mousePressEvent(self, event):
-        if event.button() == Qt.MouseButton.LeftButton:
-            self.dragging = True
-            self.offset = event.pos()
-
-    def mouseMoveEvent(self, event):
-        if self.dragging and self.offset:
-            self.move(self.mapToParent(event.pos() - self.offset))
-
-    def mouseReleaseEvent(self, event):
-        self.dragging = False
 
 
 def main():
