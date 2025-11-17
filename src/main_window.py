@@ -2,6 +2,7 @@ import sys
 import os
 from pathlib import Path
 
+# Fix paths
 current_dir = Path(__file__).parent
 root_dir = current_dir.parent
 sys.path.insert(0, str(current_dir))
@@ -17,6 +18,7 @@ from rich.text import Text
 from converter import convert_image_to_ascii
 from background import remove_background_from_image
 from gif_animator import GifConverter, GifPlayer
+from ascii_widget import FloatingAsciiWidget
 from styles.compact_theme import COMPACT_THEME, get_compact_font, CompactColors
 
 
@@ -145,6 +147,9 @@ class MainWindow(QWidget):
         self.gif_player = GifPlayer()
         self.gif_player.frame_changed.connect(self.display_frame)
         
+        # Floating widget
+        self.floating_widget = None
+        
         # Main layout
         self.main_layout = QVBoxLayout()
         self.main_layout.setSpacing(8)
@@ -202,7 +207,7 @@ class MainWindow(QWidget):
         
         controls_layout.addWidget(left_box, stretch=1)
         controls_layout.addWidget(middle_box, stretch=2)
-        controls_layout.addWidget(right_box, stretch=1)
+        controls_layout.addWidget(right_box, stretch=2)  # More space for 3 buttons
         
         control_frame.setLayout(controls_layout)
         self.main_layout.addWidget(control_frame)
@@ -281,7 +286,7 @@ class MainWindow(QWidget):
         
         self.load_button = QPushButton("LOAD")
         self.load_button.setObjectName("loadButton")
-        self.load_button.setMinimumHeight(34)
+        self.load_button.setMinimumHeight(28)
         self.load_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.load_button.clicked.connect(self.start_processing)
         
@@ -355,21 +360,31 @@ class MainWindow(QWidget):
         label = QLabel("▸ ACTIONS")
         label.setObjectName("sectionLabel")
         
-        self.export_button = QPushButton("SAVE")
+        self.export_button = QPushButton("💾 SAVE")
         self.export_button.setObjectName("exportButton")
         self.export_button.setDisabled(True)
-        self.export_button.setMinimumHeight(34)
+        self.export_button.setMinimumHeight(28)
         self.export_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.export_button.clicked.connect(self.on_export)
         
-        self.quit_button = QPushButton("QUIT")
+        # Widget button
+        self.widget_button = QPushButton("🪟 WIDGET")
+        self.widget_button.setObjectName("exportButton")
+        self.widget_button.setDisabled(True)
+        self.widget_button.setMinimumHeight(28)
+        self.widget_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.widget_button.clicked.connect(self.open_widget)
+        self.widget_button.setToolTip("Open floating widget")
+        
+        self.quit_button = QPushButton("✕ QUIT")
         self.quit_button.setObjectName("quitButton")
-        self.quit_button.setMinimumHeight(34)
+        self.quit_button.setMinimumHeight(28)
         self.quit_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.quit_button.clicked.connect(self.close)
         
         layout.addWidget(label)
         layout.addWidget(self.export_button)
+        layout.addWidget(self.widget_button)
         layout.addWidget(self.quit_button)
         
         box.setLayout(layout)
@@ -423,6 +438,7 @@ class MainWindow(QWidget):
         if not file_path:
             return
         
+        # Check if GIF
         if file_path.lower().endswith('.gif'):
             self.load_gif(file_path)
         else:
@@ -495,12 +511,15 @@ class MainWindow(QWidget):
         self.gif_player.load_animation(frames, delays)
         self.load_button.setDisabled(False)
         self.export_button.setDisabled(False)
+        self.widget_button.setDisabled(False)
         
         total_frames = len(frames)
         self.frame_label.setText(f"Frame: 1/{total_frames}")
         
+        # Show first frame
         self.text_area.append_ansi_text(frames[0])
         
+        # Auto-play
         self.gif_player.play()
         self.play_button.setText("⏸ PAUSE")
 
@@ -539,11 +558,12 @@ class MainWindow(QWidget):
         
         if not ascii_result.startswith("Error"):
             self.export_button.setDisabled(False)
+            self.widget_button.setDisabled(False)
 
     def on_export(self):
         """Export ASCII art"""
         if self.is_gif_mode:
-            # TODO: 
+            # TODO: Implement GIF export
             self.text_area.insertPlainText("\n\n// GIF export coming soon!")
             return
         
@@ -566,6 +586,26 @@ class MainWindow(QWidget):
                 self.text_area.insertPlainText(f"\n\n// SAVED: {file_path}")
             except Exception as e:
                 self.text_area.insertPlainText(f"\n\n// ERROR: {e}")
+    
+    def open_widget(self):
+        """Open floating widget with current ASCII art"""
+        if self.floating_widget is None:
+            self.floating_widget = FloatingAsciiWidget()
+        
+        # Set content based on mode
+        if self.is_gif_mode and self.gif_player.frames:
+            # Animated GIF
+            self.floating_widget.set_animation(
+                self.gif_player.frames,
+                self.gif_player.delays
+            )
+        elif self.last_ascii_result:
+            # Static image
+            self.floating_widget.set_ascii_text(self.last_ascii_result)
+        
+        self.floating_widget.show()
+        self.floating_widget.raise_()
+        self.floating_widget.activateWindow()
 
 
 def main():
