@@ -22,40 +22,49 @@ from ascii_widget import FloatingAsciiWidget
 from gif_exporter import GifExporter
 from gif_export_dialog import GifExportDialog
 from character_sets import CharacterSet, CharacterSetManager
+from image_adjustments import ImageAdjustments
 from styles.compact_theme import COMPACT_THEME, get_compact_font, CompactColors
 
 
 class Worker(QObject):
     finished = pyqtSignal(str)
 
-    def __init__(self, file_path, columns, remove_bg, char_set=None):
+    def __init__(self, file_path, columns, remove_bg, char_set=None, brightness=0, contrast=100, invert=False):
         super().__init__()
         self.file_path = file_path
         self.columns = columns
         self.remove_bg = remove_bg
         self.char_set = char_set
+        self.brightness = brightness
+        self.contrast = contrast
+        self.invert = invert
 
     def run(self):
         try:
-            image_source = self.file_path
-            temp_file_path = "temp_processed_image.png"
-
+            from PIL import Image
+            
+            # Load image
+            img = Image.open(self.file_path)
+            
+            # Remove background if requested
             if self.remove_bg:
                 processed_image = remove_background_from_image(self.file_path)
                 if processed_image:
-                    processed_image.save(temp_file_path, 'PNG')
-                    image_source = temp_file_path
+                    img = processed_image
             
-            # Use custom conversion if char_set provided
+            # Apply adjustments
+            img = ImageAdjustments.apply_all_adjustments(
+                img,
+                brightness=self.brightness,
+                contrast=self.contrast,
+                invert=self.invert
+            )
+            
+            # Convert to ASCII
             if self.char_set:
-                from PIL import Image
-                img = Image.open(image_source)
                 ascii_result = convert_image_to_ascii_custom(img, columns=self.columns, char_set=self.char_set)
             else:
-                ascii_result = convert_image_to_ascii(image_source, columns=self.columns)
-
-            if os.path.exists(temp_file_path):
-                os.remove(temp_file_path)
+                ascii_result = convert_image_to_ascii(img, columns=self.columns)
 
             if ascii_result:
                 self.finished.emit(ascii_result)
@@ -189,6 +198,7 @@ class MainWindow(QWidget):
         # Build UI
         self.create_title_bar()
         self.create_control_panel()
+        self.create_adjustments_panel()  # NEW
         self.create_gif_controls()
         self.create_display_area()
         
@@ -332,6 +342,128 @@ class MainWindow(QWidget):
         
         control_frame.setLayout(controls_layout)
         self.main_layout.addWidget(control_frame)
+    
+    def create_adjustments_panel(self):
+        """Image adjustments panel (brightness, contrast, invert)"""
+        adjust_frame = QFrame()
+        adjust_frame.setObjectName("controlPanel")
+        
+        layout = QHBoxLayout()
+        layout.setSpacing(10)
+        layout.setContentsMargins(10, 8, 10, 8)
+        
+        # Section label
+        section_label = QLabel("▸ ADJUSTMENTS")
+        section_label.setObjectName("sectionLabel")
+        section_label.setStyleSheet(f"color: {CompactColors.DUSTY_GRAPE}; font-weight: bold; font-size: 10pt;")
+        
+        # Brightness control
+        bright_layout = QVBoxLayout()
+        bright_layout.setSpacing(4)
+        
+        bright_header = QHBoxLayout()
+        bright_label = QLabel("Brightness:")
+        bright_label.setStyleSheet(f"color: {CompactColors.TEXT_SECONDARY}; font-size: 9pt;")
+        
+        self.brightness_value_label = QLabel("0")
+        self.brightness_value_label.setStyleSheet(f"color: {CompactColors.GRAPE_LIGHT}; font-weight: bold; font-size: 9pt;")
+        self.brightness_value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        
+        bright_header.addWidget(bright_label)
+        bright_header.addStretch()
+        bright_header.addWidget(self.brightness_value_label)
+        
+        self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
+        self.brightness_slider.setRange(-100, 100)
+        self.brightness_slider.setValue(0)
+        self.brightness_slider.setMinimumWidth(120)
+        self.brightness_slider.valueChanged.connect(self.update_brightness_label)
+        
+        bright_layout.addLayout(bright_header)
+        bright_layout.addWidget(self.brightness_slider)
+        
+        # Contrast control
+        contrast_layout = QVBoxLayout()
+        contrast_layout.setSpacing(4)
+        
+        contrast_header = QHBoxLayout()
+        contrast_label = QLabel("Contrast:")
+        contrast_label.setStyleSheet(f"color: {CompactColors.TEXT_SECONDARY}; font-size: 9pt;")
+        
+        self.contrast_value_label = QLabel("100%")
+        self.contrast_value_label.setStyleSheet(f"color: {CompactColors.GRAPE_LIGHT}; font-weight: bold; font-size: 9pt;")
+        self.contrast_value_label.setAlignment(Qt.AlignmentFlag.AlignRight)
+        
+        contrast_header.addWidget(contrast_label)
+        contrast_header.addStretch()
+        contrast_header.addWidget(self.contrast_value_label)
+        
+        self.contrast_slider = QSlider(Qt.Orientation.Horizontal)
+        self.contrast_slider.setRange(25, 200)
+        self.contrast_slider.setValue(100)
+        self.contrast_slider.setMinimumWidth(120)
+        self.contrast_slider.valueChanged.connect(self.update_contrast_label)
+        
+        contrast_layout.addLayout(contrast_header)
+        contrast_layout.addWidget(self.contrast_slider)
+        
+        # Invert checkbox
+        self.invert_checkbox = QCheckBox("INVERT")
+        self.invert_checkbox.setToolTip("Invert colors (negative effect)")
+        self.invert_checkbox.setStyleSheet(f"color: {CompactColors.TEXT_PRIMARY}; font-size: 10pt;")
+        
+        # Reset button
+        reset_btn = QPushButton("↻ RESET")
+        reset_btn.setMinimumHeight(28)
+        reset_btn.setFixedWidth(70)
+        reset_btn.setToolTip("Reset all adjustments to default")
+        reset_btn.clicked.connect(self.reset_adjustments)
+        reset_btn.setStyleSheet(f"""
+            QPushButton {{
+                background-color: rgba(65, 63, 84, 200);
+                color: {CompactColors.TEXT_SECONDARY};
+                border: 2px solid {CompactColors.VINTAGE_GRAPE};
+                border-radius: 0px;
+                padding: 4px;
+                font-weight: bold;
+                font-size: 9pt;
+            }}
+            QPushButton:hover {{
+                background-color: {CompactColors.VINTAGE_GRAPE};
+                color: {CompactColors.TEXT_PRIMARY};
+                border-color: {CompactColors.DUSTY_GRAPE};
+            }}
+        """)
+        
+        # Layout assembly
+        layout.addWidget(section_label)
+        layout.addSpacing(10)
+        layout.addLayout(bright_layout)
+        layout.addSpacing(10)
+        layout.addLayout(contrast_layout)
+        layout.addSpacing(10)
+        layout.addWidget(self.invert_checkbox)
+        layout.addSpacing(10)
+        layout.addWidget(reset_btn)
+        layout.addStretch()
+        
+        adjust_frame.setLayout(layout)
+        self.main_layout.addWidget(adjust_frame)
+    
+    def update_brightness_label(self, value):
+        """Update brightness label"""
+        sign = "+" if value > 0 else ""
+        self.brightness_value_label.setText(f"{sign}{value}")
+    
+    def update_contrast_label(self, value):
+        """Update contrast label"""
+        self.contrast_value_label.setText(f"{value}%")
+    
+    def reset_adjustments(self):
+        """Reset all adjustments to default"""
+        self.brightness_slider.setValue(0)
+        self.contrast_slider.setValue(100)
+        self.invert_checkbox.setChecked(False)
 
     def create_gif_controls(self):
         """GIF playback controls"""
@@ -681,9 +813,22 @@ class MainWindow(QWidget):
         char_set = None
         if preset and preset != CharacterSet.DETAILED:
             char_set = CharacterSetManager.get_character_set(preset)
+        
+        # Get adjustments
+        brightness = self.brightness_slider.value()
+        contrast = self.contrast_slider.value()
+        invert = self.invert_checkbox.isChecked()
 
         self.thread = QThread()
-        self.worker = Worker(file_path=file_path, columns=columns, remove_bg=remove_bg, char_set=char_set)
+        self.worker = Worker(
+            file_path=file_path,
+            columns=columns,
+            remove_bg=remove_bg,
+            char_set=char_set,
+            brightness=brightness,
+            contrast=contrast,
+            invert=invert
+        )
         self.worker.moveToThread(self.thread)
         
         self.thread.started.connect(self.worker.run)
@@ -794,16 +939,12 @@ class MainWindow(QWidget):
         """Export ASCII art"""
         if self.is_gif_mode:
             # GIF Export with dialog
-            print("DEBUG: GIF mode detected")
             if not self.gif_player.frames:
-                print("DEBUG: No frames available")
                 return
             
-            print("DEBUG: Opening export dialog...")
             try:
                 dialog = GifExportDialog(self)
                 result = dialog.exec()
-                print(f"DEBUG: Dialog result = {result}")
                 
                 if result == QDialog.DialogCode.Accepted:
                     format_type, output_path = dialog.get_export_info()
@@ -844,16 +985,11 @@ class MainWindow(QWidget):
                 import traceback
                 traceback.print_exc()
                 self.text_area.insertPlainText(f"\n\n// ERROR: {e}")
-                    
-        
         else:
             # Static image export
-            print("DEBUG: Static image mode")
             if not self.last_ascii_result:
-                print("DEBUG: No ASCII result available")
                 return
                 
-            print("DEBUG: Opening file dialog for static image...")
             file_path, _ = QFileDialog.getSaveFileName(
                 self, 
                 "SAVE ASCII", 
@@ -861,17 +997,14 @@ class MainWindow(QWidget):
                 "Text (*.txt)"
             )
             
-            print(f"DEBUG: Selected file path: {file_path}")
             if file_path:
                 try:
                     clean_text = Text.from_ansi(self.last_ascii_result).plain
                     with open(file_path, 'w', encoding='utf-8') as f:
                         f.write(clean_text)
                     
-                    print("DEBUG: File saved successfully")
                     self.text_area.insertPlainText(f"\n\n// SAVED: {file_path}")
                 except Exception as e:
-                    print(f"DEBUG: Error saving file: {e}")
                     self.text_area.insertPlainText(f"\n\n// ERROR: {e}")
     
     def open_widget(self):
