@@ -1,18 +1,111 @@
-2025-11-17 01:08:34,571 - INFO - Rembg: Otvaram sliku sa putanje: C:/Users/DT User3/Pictures/download (5).jpg
-2025-11-17 01:08:34,584 - INFO - Rembg: Slika uspješno otvorena. Zapoèinjem uklanjanje pozadine...
-2025-11-17 01:08:35,575 - INFO - Rembg: Pozadina uspješno uklonjena. Vraæam PIL Image objekat tipa: <class 'PIL.Image.Image'>
-2025-11-17 01:08:35,580 - INFO - Converter: Primio 'image_source' tipa: <class 'str'>
-2025-11-17 01:08:35,582 - INFO - Converter: Uspješno kreiran ascii_magic objekat.
-2025-11-17 01:08:35,655 - INFO - Converter: Uspješno generisan string za terminal.
-2025-11-17 01:08:58,136 - INFO - Rembg: Otvaram sliku sa putanje: C:/Users/DT User3/Pictures/naser.png
-2025-11-17 01:08:58,137 - INFO - Rembg: Slika uspješno otvorena. Zapoèinjem uklanjanje pozadine...
-2025-11-17 01:08:59,140 - INFO - Rembg: Pozadina uspješno uklonjena. Vraæam PIL Image objekat tipa: <class 'PIL.Image.Image'>
-2025-11-17 01:08:59,154 - INFO - Converter: Primio 'image_source' tipa: <class 'str'>
-2025-11-17 01:08:59,155 - INFO - Converter: Uspješno kreiran ascii_magic objekat.
-2025-11-17 01:08:59,187 - INFO - Converter: Uspješno generisan string za terminal.
-2025-11-17 01:09:04,399 - INFO - Rembg: Otvaram sliku sa putanje: C:/Users/DT User3/Pictures/etf.png
-2025-11-17 01:09:04,402 - INFO - Rembg: Slika uspješno otvorena. Zapoèinjem uklanjanje pozadine...
-2025-11-17 01:09:05,436 - INFO - Rembg: Pozadina uspješno uklonjena. Vraæam PIL Image objekat tipa: <class 'PIL.Image.Image'>
-2025-11-17 01:09:05,442 - INFO - Converter: Primio 'image_source' tipa: <class 'str'>
-2025-11-17 01:09:05,445 - INFO - Converter: Uspješno kreiran ascii_magic objekat.
-2025-11-17 01:09:05,505 - INFO - Converter: Uspješno generisan string za terminal.
+2025-11-17 01:32:43,896 - INFO - Converter: Received path string. Using from_image.
+2025-11-17 01:32:43,909 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:44,010 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:47,346 - INFO - Rembg: Otvaram sliku sa putanje: C:/Users/DT User3/Pictures/etf.png
+2025-11-17 01:32:47,361 - INFO - Rembg: Slika uspješno otvorena. Zapoèinjem uklanjanje pozadine...
+2025-11-17 01:32:48,557 - INFO - Rembg: Pozadina uspješno uklonjena. Vraæam PIL Image objekat tipa: <class 'PIL.Image.Image'>
+2025-11-17 01:32:48,562 - INFO - Converter: Received path string. Using from_image.
+2025-11-17 01:32:48,563 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:48,623 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,346 - INFO - Converter (GIF): Processing frame 0...
+2025-11-17 01:32:53,356 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,357 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:53,434 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,434 - INFO - Converter (GIF): Processing frame 1...
+2025-11-17 01:32:53,471 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,472 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:53,525 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,528 - INFO - Converter (GIF): Processing frame 2...
+2025-11-17 01:32:53,534 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,534 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:53,627 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,628 - INFO - Converter (GIF): Processing frame 3...
+2025-11-17 01:32:53,630 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,630 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:53,683 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,685 - INFO - Converter (GIF): Processing frame 4...
+2025-11-17 01:32:53,688 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,688 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:53,743 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,744 - INFO - Converter (GIF): Processing frame 5...
+2025-11-17 01:32:53,746 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,746 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:53,798 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,799 - INFO - Converter (GIF): Processing frame 6...
+2025-11-17 01:32:53,802 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,802 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:53,854 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,854 - INFO - Converter (GIF): Processing frame 7...
+2025-11-17 01:32:53,856 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,856 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:53,908 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,908 - INFO - Converter (GIF): Processing frame 8...
+2025-11-17 01:32:53,910 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,910 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:53,962 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:53,962 - INFO - Converter (GIF): Processing frame 9...
+2025-11-17 01:32:53,964 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:53,964 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,016 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,016 - INFO - Converter (GIF): Processing frame 10...
+2025-11-17 01:32:54,018 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,018 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,070 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,070 - INFO - Converter (GIF): Processing frame 11...
+2025-11-17 01:32:54,073 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,073 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,125 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,125 - INFO - Converter (GIF): Processing frame 12...
+2025-11-17 01:32:54,137 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,137 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,189 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,189 - INFO - Converter (GIF): Processing frame 13...
+2025-11-17 01:32:54,192 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,192 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,243 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,243 - INFO - Converter (GIF): Processing frame 14...
+2025-11-17 01:32:54,245 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,245 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,297 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,297 - INFO - Converter (GIF): Processing frame 15...
+2025-11-17 01:32:54,300 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,300 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,351 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,351 - INFO - Converter (GIF): Processing frame 16...
+2025-11-17 01:32:54,353 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,353 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,406 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,407 - INFO - Converter (GIF): Processing frame 17...
+2025-11-17 01:32:54,408 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,408 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,461 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,461 - INFO - Converter (GIF): Processing frame 18...
+2025-11-17 01:32:54,463 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,463 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,515 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,515 - INFO - Converter (GIF): Processing frame 19...
+2025-11-17 01:32:54,516 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,516 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,567 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,568 - INFO - Converter (GIF): Processing frame 20...
+2025-11-17 01:32:54,569 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,569 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,621 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,621 - INFO - Converter (GIF): Processing frame 21...
+2025-11-17 01:32:54,623 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,623 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,675 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,675 - INFO - Converter (GIF): Processing frame 22...
+2025-11-17 01:32:54,686 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,686 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,739 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,740 - INFO - Converter (GIF): Processing frame 23...
+2025-11-17 01:32:54,741 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,741 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,793 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,793 - INFO - Converter (GIF): Processing frame 24...
+2025-11-17 01:32:54,795 - INFO - Converter: Received PIL Image object. Using it directly.
+2025-11-17 01:32:54,795 - INFO - Converter: Successfully created ascii_magic object.
+2025-11-17 01:32:54,846 - INFO - Converter: Successfully generated terminal string.
+2025-11-17 01:32:54,846 - INFO - Converter (GIF): Processing frame 25...
+2025-11-17 01:32:54,846 - INFO - Converter (GIF): Reached end of GIF after 25 frames.

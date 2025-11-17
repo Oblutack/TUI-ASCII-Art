@@ -1,5 +1,3 @@
-# src/__main__.py
-
 from .tui_app import AsciiApp
 
 def main():
