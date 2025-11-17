@@ -10,28 +10,30 @@ sys.path.insert(0, str(root_dir))
 
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QTextEdit, QPushButton, QFileDialog, QCheckBox, 
-                             QSlider, QLabel, QFrame, QProgressBar, QDialog)
+                             QSlider, QLabel, QFrame, QProgressBar, QDialog, QComboBox)
 from PyQt6.QtGui import QFont, QColor, QTextCursor, QPalette, QDragEnterEvent, QDropEvent
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl
 from rich.text import Text 
 
-from converter import convert_image_to_ascii
+from converter import convert_image_to_ascii, convert_image_to_ascii_custom
 from background import remove_background_from_image
 from gif_animator import GifConverter, GifPlayer
 from ascii_widget import FloatingAsciiWidget
 from gif_exporter import GifExporter
 from gif_export_dialog import GifExportDialog
+from character_sets import CharacterSet, CharacterSetManager
 from styles.compact_theme import COMPACT_THEME, get_compact_font, CompactColors
 
 
 class Worker(QObject):
     finished = pyqtSignal(str)
 
-    def __init__(self, file_path, columns, remove_bg):
+    def __init__(self, file_path, columns, remove_bg, char_set=None):
         super().__init__()
         self.file_path = file_path
         self.columns = columns
         self.remove_bg = remove_bg
+        self.char_set = char_set
 
     def run(self):
         try:
@@ -44,7 +46,13 @@ class Worker(QObject):
                     processed_image.save(temp_file_path, 'PNG')
                     image_source = temp_file_path
             
-            ascii_result = convert_image_to_ascii(image_source, columns=self.columns)
+            # Use custom conversion if char_set provided
+            if self.char_set:
+                from PIL import Image
+                img = Image.open(image_source)
+                ascii_result = convert_image_to_ascii_custom(img, columns=self.columns, char_set=self.char_set)
+            else:
+                ascii_result = convert_image_to_ascii(image_source, columns=self.columns)
 
             if os.path.exists(temp_file_path):
                 os.remove(temp_file_path)
@@ -63,22 +71,39 @@ class GifWorker(QObject):
     finished = pyqtSignal(list, list)
     error = pyqtSignal(str)
 
-    def __init__(self, gif_path, columns):
+    def __init__(self, gif_path, columns, char_set=None):
         super().__init__()
         self.gif_path = gif_path
         self.columns = columns
+        self.char_set = char_set
         self.converter = GifConverter()
 
     def run(self):
         self.converter.frame_converted.connect(self.progress.emit)
         self.converter.conversion_error.connect(self.error.emit)
         
-        frames, delays = self.converter.convert_gif(self.gif_path, self.columns)
-        
-        if frames:
-            self.finished.emit(frames, delays)
+        # Use custom char set if provided
+        if self.char_set:
+            from converter import convert_gif_to_ascii_frames
+            frame_data = convert_gif_to_ascii_frames(self.gif_path, self.columns, self.char_set)
+            frames = [f[0] for f in frame_data]
+            delays = [int(f[1] * 1000) for f in frame_data]  # Convert to milliseconds
+            
+            if frames:
+                # Emit progress manually
+                total = len(frames)
+                for i in range(total):
+                    self.progress.emit(i + 1, total)
+                self.finished.emit(frames, delays)
+            else:
+                self.error.emit("Failed to convert GIF")
         else:
-            self.error.emit("Failed to convert GIF")
+            frames, delays = self.converter.convert_gif(self.gif_path, self.columns)
+            
+            if frames:
+                self.finished.emit(frames, delays)
+            else:
+                self.error.emit("Failed to convert GIF")
 
 
 class CompactTextEdit(QTextEdit):
@@ -297,10 +322,12 @@ class MainWindow(QWidget):
         
         left_box = self.create_input_box()
         middle_box = self.create_width_box()
+        charset_box = self.create_charset_box()
         right_box = self.create_actions_box()
         
         controls_layout.addWidget(left_box, stretch=1)
         controls_layout.addWidget(middle_box, stretch=2)
+        controls_layout.addWidget(charset_box, stretch=2)
         controls_layout.addWidget(right_box, stretch=2)
         
         control_frame.setLayout(controls_layout)
@@ -394,6 +421,100 @@ class MainWindow(QWidget):
         
         box.setLayout(layout)
         return box
+
+    def create_charset_box(self):
+        """Character set selection"""
+        box = QFrame()
+        box.setStyleSheet(f"""
+            QFrame {{
+                background-color: rgba(65, 63, 84, 255);
+                border: 2px solid {CompactColors.DUSTY_GRAPE};
+                padding: 8px;
+            }}
+        """)
+        
+        layout = QVBoxLayout()
+        layout.setSpacing(6)
+        layout.setContentsMargins(6, 6, 6, 6)
+        
+        label = QLabel("▸ STYLE")
+        label.setObjectName("sectionLabel")
+        
+        # Character set combo box
+        self.charset_combo = QComboBox()
+        self.charset_combo.setMinimumHeight(28)
+        self.charset_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: rgba(48, 41, 47, 240);
+                color: {CompactColors.TEXT_PRIMARY};
+                border: 2px solid {CompactColors.VINTAGE_GRAPE};
+                border-radius: 0px;
+                padding: 6px;
+                font-size: 10pt;
+            }}
+            QComboBox:hover {{
+                border-color: {CompactColors.DUSTY_GRAPE};
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+            QComboBox::down-arrow {{
+                image: none;
+                border-left: 5px solid transparent;
+                border-right: 5px solid transparent;
+                border-top: 5px solid {CompactColors.DUSTY_GRAPE};
+                margin-right: 5px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: rgba(48, 41, 47, 250);
+                color: {CompactColors.TEXT_PRIMARY};
+                border: 2px solid {CompactColors.DUSTY_GRAPE};
+                selection-background-color: {CompactColors.DUSTY_GRAPE};
+                selection-color: white;
+            }}
+        """)
+        
+        # Add character set options
+        for preset in CharacterSetManager.get_all_presets():
+            display_name = CharacterSetManager.get_display_name(preset)
+            self.charset_combo.addItem(display_name, preset)
+            
+            # Set tooltip
+            idx = self.charset_combo.count() - 1
+            tooltip = CharacterSetManager.get_description(preset)
+            self.charset_combo.setItemData(idx, tooltip, Qt.ItemDataRole.ToolTipRole)
+        
+        # Preview label
+        self.charset_preview = QLabel("Preview: @@@%%%###***")
+        self.charset_preview.setStyleSheet(f"""
+            QLabel {{
+                color: {CompactColors.GRAPE_BRIGHT};
+                font-family: 'Courier New', monospace;
+                font-size: 8pt;
+                padding: 4px;
+                background-color: rgba(48, 41, 47, 200);
+                border: 1px solid {CompactColors.VINTAGE_GRAPE};
+            }}
+        """)
+        self.charset_preview.setWordWrap(True)
+        
+        # Connect signal
+        self.charset_combo.currentIndexChanged.connect(self.update_charset_preview)
+        
+        layout.addWidget(label)
+        layout.addWidget(self.charset_combo)
+        layout.addWidget(self.charset_preview)
+        
+        box.setLayout(layout)
+        return box
+    
+    def update_charset_preview(self):
+        """Update character set preview"""
+        preset = self.charset_combo.currentData()
+        if preset:
+            preview = CharacterSetManager.get_preview(preset)
+            self.charset_preview.setText(f"Preview: {preview}")
 
     def create_width_box(self):
         """Width control"""
@@ -554,9 +675,15 @@ class MainWindow(QWidget):
 
         columns = self.width_slider.value()
         remove_bg = self.bg_checkbox.isChecked()
+        
+        # Get character set
+        preset = self.charset_combo.currentData()
+        char_set = None
+        if preset and preset != CharacterSet.DETAILED:
+            char_set = CharacterSetManager.get_character_set(preset)
 
         self.thread = QThread()
-        self.worker = Worker(file_path=file_path, columns=columns, remove_bg=remove_bg)
+        self.worker = Worker(file_path=file_path, columns=columns, remove_bg=remove_bg, char_set=char_set)
         self.worker.moveToThread(self.thread)
         
         self.thread.started.connect(self.worker.run)
@@ -581,9 +708,15 @@ class MainWindow(QWidget):
         self.progress_bar.setValue(0)
 
         columns = self.width_slider.value()
+        
+        # Get character set
+        preset = self.charset_combo.currentData()
+        char_set = None
+        if preset and preset != CharacterSet.DETAILED:
+            char_set = CharacterSetManager.get_character_set(preset)
 
         self.gif_thread = QThread()
-        self.gif_worker = GifWorker(file_path, columns)
+        self.gif_worker = GifWorker(file_path, columns, char_set)
         self.gif_worker.moveToThread(self.gif_thread)
         
         self.gif_thread.started.connect(self.gif_worker.run)
@@ -659,18 +792,21 @@ class MainWindow(QWidget):
 
     def on_export(self):
         """Export ASCII art"""
-        print("DEBUG: on_export called")
-        print(f"DEBUG: is_gif_mode = {self.is_gif_mode}")
-        
         if self.is_gif_mode:
             # GIF Export with dialog
+            print("DEBUG: GIF mode detected")
             if not self.gif_player.frames:
+                print("DEBUG: No frames available")
                 return
             
-            # Show export dialog
-            dialog = GifExportDialog(self)
-            if dialog.exec() == QDialog.DialogCode.Accepted:
-                format_type, output_path = dialog.get_export_info()
+            print("DEBUG: Opening export dialog...")
+            try:
+                dialog = GifExportDialog(self)
+                result = dialog.exec()
+                print(f"DEBUG: Dialog result = {result}")
+                
+                if result == QDialog.DialogCode.Accepted:
+                    format_type, output_path = dialog.get_export_info()
                 
                 if not output_path:
                     return
@@ -704,12 +840,20 @@ class MainWindow(QWidget):
                     self.text_area.insertPlainText(f"\n// ✓ SAVED: {output_path}")
                 else:
                     self.text_area.insertPlainText(f"\n// ✗ ERROR: Export failed")
+            except Exception as e:
+                import traceback
+                traceback.print_exc()
+                self.text_area.insertPlainText(f"\n\n// ERROR: {e}")
+                    
         
         else:
             # Static image export
+            print("DEBUG: Static image mode")
             if not self.last_ascii_result:
+                print("DEBUG: No ASCII result available")
                 return
                 
+            print("DEBUG: Opening file dialog for static image...")
             file_path, _ = QFileDialog.getSaveFileName(
                 self, 
                 "SAVE ASCII", 
@@ -717,14 +861,17 @@ class MainWindow(QWidget):
                 "Text (*.txt)"
             )
             
+            print(f"DEBUG: Selected file path: {file_path}")
             if file_path:
                 try:
                     clean_text = Text.from_ansi(self.last_ascii_result).plain
                     with open(file_path, 'w', encoding='utf-8') as f:
                         f.write(clean_text)
                     
+                    print("DEBUG: File saved successfully")
                     self.text_area.insertPlainText(f"\n\n// SAVED: {file_path}")
                 except Exception as e:
+                    print(f"DEBUG: Error saving file: {e}")
                     self.text_area.insertPlainText(f"\n\n// ERROR: {e}")
     
     def open_widget(self):
