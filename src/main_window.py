@@ -11,14 +11,16 @@ sys.path.insert(0, str(root_dir))
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QTextEdit, QPushButton, QFileDialog, QCheckBox, 
                              QSlider, QLabel, QFrame, QProgressBar)
-from PyQt6.QtGui import QFont, QColor, QTextCursor, QPalette
-from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread
+from PyQt6.QtGui import QFont, QColor, QTextCursor, QPalette, QDragEnterEvent, QDropEvent
+from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl
 from rich.text import Text 
 
 from converter import convert_image_to_ascii
 from background import remove_background_from_image
 from gif_animator import GifConverter, GifPlayer
 from ascii_widget import FloatingAsciiWidget
+from gif_exporter import GifExporter
+from gif_export_dialog import GifExportDialog
 from styles.compact_theme import COMPACT_THEME, get_compact_font, CompactColors
 
 
@@ -140,6 +142,9 @@ class MainWindow(QWidget):
         self.setGeometry(100, 100, 800, 550)
         self.setMinimumSize(700, 500)
         
+        # Enable drag & drop
+        self.setAcceptDrops(True)
+        
         self.last_ascii_result = None
         self.is_gif_mode = False
         
@@ -159,8 +164,11 @@ class MainWindow(QWidget):
         # Build UI
         self.create_title_bar()
         self.create_control_panel()
-        self.create_gif_controls()  # NEW
+        self.create_gif_controls()
         self.create_display_area()
+        
+        # Keyboard shortcuts
+        self.setup_shortcuts()
         
         # Threading
         self.thread = None
@@ -170,6 +178,87 @@ class MainWindow(QWidget):
         
         # Hide GIF controls initially
         self.gif_controls_frame.hide()
+
+    def setup_shortcuts(self):
+        """Setup keyboard shortcuts"""
+        from PyQt6.QtGui import QShortcut, QKeySequence
+        
+        # Ctrl+O - Open file
+        QShortcut(QKeySequence("Ctrl+O"), self).activated.connect(self.start_processing)
+        
+        # Ctrl+S - Save
+        QShortcut(QKeySequence("Ctrl+S"), self).activated.connect(self.on_export)
+        
+        # Ctrl+W - Open widget
+        QShortcut(QKeySequence("Ctrl+W"), self).activated.connect(self.open_widget)
+        
+        # Space - Play/Pause (only in GIF mode)
+        QShortcut(QKeySequence("Space"), self).activated.connect(self.shortcut_play_pause)
+        
+        # Ctrl+Q - Quit
+        QShortcut(QKeySequence("Ctrl+Q"), self).activated.connect(self.close)
+
+    def shortcut_play_pause(self):
+        """Play/pause handler for keyboard shortcut"""
+        if self.is_gif_mode:
+            self.toggle_playback()
+
+    # ========== DRAG & DROP HANDLERS ==========
+    
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        """Handle drag enter - check if file is valid"""
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if len(urls) >= 1:  # Accept one or more files
+                file_path = urls[0].toLocalFile()
+                # Check if it's an image or GIF
+                valid_extensions = ['.png', '.jpg', '.jpeg', '.bmp', '.gif']
+                if any(file_path.lower().endswith(ext) for ext in valid_extensions):
+                    event.accept()  # Accept the event
+                    # Visual feedback
+                    self.setStyleSheet(COMPACT_THEME + """
+                        QMainWindow {
+                            border: 3px dashed #5f5aa2;
+                        }
+                    """)
+                    return
+        event.ignore()
+    
+    def dragMoveEvent(self, event):
+        """Handle drag move - needed for proper drag & drop"""
+        if event.mimeData().hasUrls():
+            event.accept()
+        else:
+            event.ignore()
+    
+    def dragLeaveEvent(self, event):
+        """Handle drag leave - remove visual feedback"""
+        self.setStyleSheet(COMPACT_THEME)
+    
+    def dropEvent(self, event: QDropEvent):
+        """Handle file drop"""
+        # Remove visual feedback
+        self.setStyleSheet(COMPACT_THEME)
+        
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if len(urls) == 1:
+                file_path = urls[0].toLocalFile()
+                
+                # Check if it's a GIF
+                if file_path.lower().endswith('.gif'):
+                    self.load_gif(file_path)
+                else:
+                    self.load_image(file_path)
+                
+                event.acceptProposedAction()
+                
+                # Show feedback in text area
+                filename = os.path.basename(file_path)
+                self.text_area.clear()
+                self.text_area.insertPlainText(f"// FILE DROPPED: {filename}\n// Processing...")
+    
+    # ========== END DRAG & DROP ==========
 
     def create_title_bar(self):
         """Compact title bar"""
@@ -185,9 +274,14 @@ class MainWindow(QWidget):
         subtitle_label = QLabel("// Image & GIF Converter")
         subtitle_label.setObjectName("subtitleLabel")
         
+        # Drag & Drop hint
+        hint_label = QLabel("💡 Drag & Drop files here")
+        hint_label.setStyleSheet(f"color: {CompactColors.TEXT_SECONDARY}; font-size: 9pt; font-style: italic;")
+        
         title_layout.addWidget(title_label)
         title_layout.addWidget(subtitle_label)
         title_layout.addStretch()
+        title_layout.addWidget(hint_label)
         
         title_frame.setLayout(title_layout)
         self.main_layout.addWidget(title_frame)
@@ -207,7 +301,7 @@ class MainWindow(QWidget):
         
         controls_layout.addWidget(left_box, stretch=1)
         controls_layout.addWidget(middle_box, stretch=2)
-        controls_layout.addWidget(right_box, stretch=2)  # More space for 3 buttons
+        controls_layout.addWidget(right_box, stretch=2)
         
         control_frame.setLayout(controls_layout)
         self.main_layout.addWidget(control_frame)
@@ -234,8 +328,8 @@ class MainWindow(QWidget):
         # Speed control
         speed_label = QLabel("Speed:")
         self.speed_slider = QSlider(Qt.Orientation.Horizontal)
-        self.speed_slider.setRange(25, 400)  # 0.25x to 4x
-        self.speed_slider.setValue(100)  # 1.0x
+        self.speed_slider.setRange(25, 400)
+        self.speed_slider.setValue(100)
         self.speed_slider.setMinimumWidth(120)
         self.speed_slider.valueChanged.connect(self.update_speed)
         
@@ -289,6 +383,7 @@ class MainWindow(QWidget):
         self.load_button.setMinimumHeight(28)
         self.load_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.load_button.clicked.connect(self.start_processing)
+        self.load_button.setToolTip("Open file (Ctrl+O)")
         
         self.bg_checkbox = QCheckBox("RM BG")
         self.bg_checkbox.setToolTip("Remove Background")
@@ -366,6 +461,7 @@ class MainWindow(QWidget):
         self.export_button.setMinimumHeight(28)
         self.export_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.export_button.clicked.connect(self.on_export)
+        self.export_button.setToolTip("Save ASCII art (Ctrl+S)")
         
         # Widget button
         self.widget_button = QPushButton("🪟 WIDGET")
@@ -374,13 +470,14 @@ class MainWindow(QWidget):
         self.widget_button.setMinimumHeight(28)
         self.widget_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.widget_button.clicked.connect(self.open_widget)
-        self.widget_button.setToolTip("Open floating widget")
+        self.widget_button.setToolTip("Open floating widget (Ctrl+W)")
         
         self.quit_button = QPushButton("✕ QUIT")
         self.quit_button.setObjectName("quitButton")
         self.quit_button.setMinimumHeight(28)
         self.quit_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.quit_button.clicked.connect(self.close)
+        self.quit_button.setToolTip("Quit application (Ctrl+Q)")
         
         layout.addWidget(label)
         layout.addWidget(self.export_button)
@@ -403,7 +500,7 @@ class MainWindow(QWidget):
         output_label.setObjectName("sectionLabel")
         
         self.text_area = CompactTextEdit()
-        self.text_area.setPlaceholderText("// READY\n// Load an image or GIF to begin")
+        self.text_area.setPlaceholderText("// READY\n// Load an image or GIF to begin\n// Or drag & drop a file here")
         
         # Progress bar for GIF conversion
         self.progress_bar = QProgressBar()
