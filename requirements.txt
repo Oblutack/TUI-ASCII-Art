@@ -1,0 +1,10 @@
+ascii_magic==2.7.2
+Pillow==12.0.0
+opencv-python==4.11.0.86
+numpy==1.26.4
+rembg==2.0.67
+onnxruntime==1.19.2
+PyQt6==6.10.0
+rich==14.2.0
+textual==6.6.0
+pyinstaller==6.16.0

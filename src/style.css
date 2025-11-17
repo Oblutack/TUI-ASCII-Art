@@ -1,22 +1,32 @@
+/* src/style.css (Adjusted for new widgets) */
 #app-container {
-  padding: 1;
+    padding: 1;
 }
 
 #controls-container {
-  height: auto;
-  margin-bottom: 1;
-  align-vertical: middle;
+    height: auto;
+    margin-bottom: 1;
+    align-vertical: middle;
 }
 
-#load-file-button {
-  margin-right: 2;
+#load-file-button, #export-button {
+    margin-right: 2;
+}
+
+/* NEW: Styles for the slider and its label */
+.label {
+    height: 1;
+    margin-top: 1;
+}
+#width-slider {
+    height: auto;
 }
 
 #status-label {
-  height: 1;
-  color: $text-muted;
+    height: 1;
+    color: $text-muted;
 }
 
 #display-container {
-  border: round white;
+    border: round white;
 }
