@@ -1,0 +1,22 @@
+#app-container {
+  padding: 1;
+}
+
+#controls-container {
+  height: auto;
+  margin-bottom: 1;
+  align-vertical: middle;
+}
+
+#load-file-button {
+  margin-right: 2;
+}
+
+#status-label {
+  height: 1;
+  color: $text-muted;
+}
+
+#display-container {
+  border: round white;
+}

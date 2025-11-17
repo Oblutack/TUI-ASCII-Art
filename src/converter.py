@@ -1,25 +1,19 @@
+import logging
 import ascii_magic
 from PIL import Image
+from typing import Union
 
-def convert_image_to_ascii(image_path: str, columns: int = 120):
-    """
-    Takes a path to an image and returns its colorful ASCII art representation.
-    
-    Args:
-        image_path (str): The full path to the input image.
-        columns (int): The width of the output ASCII art in characters.
-        
-    Returns:
-        str: The generated ASCII art as a string, ready for printing.
-    """
+def convert_image_to_ascii(image_source: Union[str, Image.Image], columns: int = 120):
     try:
-        art_object = ascii_magic.from_image(image_path)
+        logging.info(f"Converter: Primio 'image_source' tipa: {type(image_source)}")
+        
+        art_object = ascii_magic.from_image(image_source)
+        logging.info("Converter: Uspješno kreiran ascii_magic objekat.")
         
         ascii_art_string = art_object.to_terminal(columns=columns)
+        logging.info("Converter: Uspješno generisan string za terminal.")
         
         return ascii_art_string
-        
-    except FileNotFoundError:
-        return f"Error: The file '{image_path}' was not found."
     except Exception as e:
-        return f"An error occurred: {e}"
+        logging.exception(f"Converter: Desila se greška unutar ascii_magic biblioteke: {e}")
+        return None

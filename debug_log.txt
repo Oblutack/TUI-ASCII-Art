@@ -1,0 +1,18 @@
+2025-11-17 01:08:34,571 - INFO - Rembg: Otvaram sliku sa putanje: C:/Users/DT User3/Pictures/download (5).jpg
+2025-11-17 01:08:34,584 - INFO - Rembg: Slika uspješno otvorena. Zapoèinjem uklanjanje pozadine...
+2025-11-17 01:08:35,575 - INFO - Rembg: Pozadina uspješno uklonjena. Vraæam PIL Image objekat tipa: <class 'PIL.Image.Image'>
+2025-11-17 01:08:35,580 - INFO - Converter: Primio 'image_source' tipa: <class 'str'>
+2025-11-17 01:08:35,582 - INFO - Converter: Uspješno kreiran ascii_magic objekat.
+2025-11-17 01:08:35,655 - INFO - Converter: Uspješno generisan string za terminal.
+2025-11-17 01:08:58,136 - INFO - Rembg: Otvaram sliku sa putanje: C:/Users/DT User3/Pictures/naser.png
+2025-11-17 01:08:58,137 - INFO - Rembg: Slika uspješno otvorena. Zapoèinjem uklanjanje pozadine...
+2025-11-17 01:08:59,140 - INFO - Rembg: Pozadina uspješno uklonjena. Vraæam PIL Image objekat tipa: <class 'PIL.Image.Image'>
+2025-11-17 01:08:59,154 - INFO - Converter: Primio 'image_source' tipa: <class 'str'>
+2025-11-17 01:08:59,155 - INFO - Converter: Uspješno kreiran ascii_magic objekat.
+2025-11-17 01:08:59,187 - INFO - Converter: Uspješno generisan string za terminal.
+2025-11-17 01:09:04,399 - INFO - Rembg: Otvaram sliku sa putanje: C:/Users/DT User3/Pictures/etf.png
+2025-11-17 01:09:04,402 - INFO - Rembg: Slika uspješno otvorena. Zapoèinjem uklanjanje pozadine...
+2025-11-17 01:09:05,436 - INFO - Rembg: Pozadina uspješno uklonjena. Vraæam PIL Image objekat tipa: <class 'PIL.Image.Image'>
+2025-11-17 01:09:05,442 - INFO - Converter: Primio 'image_source' tipa: <class 'str'>
+2025-11-17 01:09:05,445 - INFO - Converter: Uspješno kreiran ascii_magic objekat.
+2025-11-17 01:09:05,505 - INFO - Converter: Uspješno generisan string za terminal.
