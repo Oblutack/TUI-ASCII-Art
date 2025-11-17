@@ -10,7 +10,7 @@ sys.path.insert(0, str(root_dir))
 
 from PyQt6.QtWidgets import (QApplication, QWidget, QVBoxLayout, QHBoxLayout, 
                              QTextEdit, QPushButton, QFileDialog, QCheckBox, 
-                             QSlider, QLabel, QFrame, QProgressBar)
+                             QSlider, QLabel, QFrame, QProgressBar, QDialog)
 from PyQt6.QtGui import QFont, QColor, QTextCursor, QPalette, QDragEnterEvent, QDropEvent
 from PyQt6.QtCore import Qt, QObject, pyqtSignal, QThread, QUrl
 from rich.text import Text 
@@ -659,30 +659,73 @@ class MainWindow(QWidget):
 
     def on_export(self):
         """Export ASCII art"""
+        print("DEBUG: on_export called")
+        print(f"DEBUG: is_gif_mode = {self.is_gif_mode}")
+        
         if self.is_gif_mode:
-            # TODO: Implement GIF export
-            self.text_area.insertPlainText("\n\n// GIF export coming soon!")
-            return
-        
-        if not self.last_ascii_result:
-            return
+            # GIF Export with dialog
+            if not self.gif_player.frames:
+                return
             
-        file_path, _ = QFileDialog.getSaveFileName(
-            self, 
-            "SAVE ASCII", 
-            "ascii.txt", 
-            "Text (*.txt)"
-        )
-        
-        if file_path:
-            try:
-                clean_text = Text.from_ansi(self.last_ascii_result).plain
-                with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(clean_text)
+            # Show export dialog
+            dialog = GifExportDialog(self)
+            if dialog.exec() == QDialog.DialogCode.Accepted:
+                format_type, output_path = dialog.get_export_info()
                 
-                self.text_area.insertPlainText(f"\n\n// SAVED: {file_path}")
-            except Exception as e:
-                self.text_area.insertPlainText(f"\n\n// ERROR: {e}")
+                if not output_path:
+                    return
+                
+                # Show progress message
+                self.text_area.insertPlainText(f"\n\n// EXPORTING as {format_type.upper()}...")
+                QApplication.processEvents()
+                
+                # Export based on format
+                success = False
+                if format_type == 'txt':
+                    success = GifExporter.export_to_single_txt(
+                        self.gif_player.frames,
+                        self.gif_player.delays,
+                        output_path
+                    )
+                elif format_type == 'html':
+                    success = GifExporter.export_to_html(
+                        self.gif_player.frames,
+                        self.gif_player.delays,
+                        output_path
+                    )
+                elif format_type == 'folder':
+                    success = GifExporter.export_to_folder(
+                        self.gif_player.frames,
+                        self.gif_player.delays,
+                        output_path
+                    )
+                
+                if success:
+                    self.text_area.insertPlainText(f"\n// ✓ SAVED: {output_path}")
+                else:
+                    self.text_area.insertPlainText(f"\n// ✗ ERROR: Export failed")
+        
+        else:
+            # Static image export
+            if not self.last_ascii_result:
+                return
+                
+            file_path, _ = QFileDialog.getSaveFileName(
+                self, 
+                "SAVE ASCII", 
+                "ascii.txt", 
+                "Text (*.txt)"
+            )
+            
+            if file_path:
+                try:
+                    clean_text = Text.from_ansi(self.last_ascii_result).plain
+                    with open(file_path, 'w', encoding='utf-8') as f:
+                        f.write(clean_text)
+                    
+                    self.text_area.insertPlainText(f"\n\n// SAVED: {file_path}")
+                except Exception as e:
+                    self.text_area.insertPlainText(f"\n\n// ERROR: {e}")
     
     def open_widget(self):
         """Open floating widget with current ASCII art"""
