@@ -385,18 +385,58 @@ class FloatingAsciiWidget(QWidget):
         self.ui_visible = not self.ui_visible
         
         if self.ui_visible:
-            # Show UI
+            # Show UI - restore background
             self.title_bar.show()
             if self.is_animated:
                 self.control_bar.show()
             self.resize_handle.show()
             self.hide_ui_btn.setText("⬜ HIDE")
             self.hide_ui_btn.setToolTip("Hide UI")
+            
+            # Restore background for main container
+            self.findChild(QFrame).setStyleSheet(f"""
+                QFrame {{
+                    background-color: rgba(48, 41, 47, 240);
+                    border: 3px solid {CompactColors.DUSTY_GRAPE};
+                    border-radius: 0px;
+                }}
+            """)
+            
+            # Restore text display background
+            self.text_display.setStyleSheet(f"""
+                QTextEdit {{
+                    background-color: rgba(48, 41, 47, 250);
+                    color: {CompactColors.GRAPE_BRIGHT};
+                    border: none;
+                    padding: 10px;
+                    font-size: 9pt;
+                }}
+            """)
         else:
-            # Hide UI - only show ASCII art
+            # Hide UI - make transparent
             self.title_bar.hide()
             self.control_bar.hide()
             self.resize_handle.hide()
+            
+            # Make main container transparent
+            self.findChild(QFrame).setStyleSheet(f"""
+                QFrame {{
+                    background-color: transparent;
+                    border: none;
+                    border-radius: 0px;
+                }}
+            """)
+            
+            # Make text display fully transparent
+            self.text_display.setStyleSheet(f"""
+                QTextEdit {{
+                    background-color: transparent;
+                    color: {CompactColors.GRAPE_BRIGHT};
+                    border: none;
+                    padding: 10px;
+                    font-size: 9pt;
+                }}
+            """)
     
     # Mouse events for dragging
     def mousePressEvent(self, event):
