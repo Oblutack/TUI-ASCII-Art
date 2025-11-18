@@ -17,6 +17,14 @@ class FloatingAsciiWidget(QWidget):
     Features: Always on top, draggable, semi-transparent
     """
     
+    def eventFilter(self, obj, event):
+        if obj == self.text_display.viewport():
+            if event.type() == event.Type.MouseButtonPress:
+                if not self.ui_visible:
+                    self.toggle_ui_visibility()
+                    return True
+        return super().eventFilter(obj, event)
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         
@@ -82,6 +90,7 @@ class FloatingAsciiWidget(QWidget):
         self.text_display.setReadOnly(True)
         self.text_display.setFont(get_compact_font())
         self.text_display.setLineWrapMode(QTextEdit.LineWrapMode.NoWrap)
+        self.text_display.viewport().installEventFilter(self)
         self.text_display.setStyleSheet(f"""
             QTextEdit {{
                 background-color: rgba(48, 41, 47, 250);

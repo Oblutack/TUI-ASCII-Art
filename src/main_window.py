@@ -23,6 +23,8 @@ from gif_exporter import GifExporter
 from gif_export_dialog import GifExportDialog
 from character_sets import CharacterSet, CharacterSetManager
 from image_adjustments import ImageAdjustments
+from history_manager import HistoryManager
+from history_panel import HistoryPanel
 from styles.compact_theme import COMPACT_THEME, get_compact_font, CompactColors
 
 
@@ -80,39 +82,91 @@ class GifWorker(QObject):
     finished = pyqtSignal(list, list)
     error = pyqtSignal(str)
 
-    def __init__(self, gif_path, columns, char_set=None):
+    def __init__(self, gif_path, columns, char_set=None, brightness=0, contrast=100, invert=False):
         super().__init__()
         self.gif_path = gif_path
         self.columns = columns
         self.char_set = char_set
+        self.brightness = brightness
+        self.contrast = contrast
+        self.invert = invert
         self.converter = GifConverter()
 
     def run(self):
-        self.converter.frame_converted.connect(self.progress.emit)
-        self.converter.conversion_error.connect(self.error.emit)
+        from PIL import Image
         
-        # Use custom char set if provided
-        if self.char_set:
-            from converter import convert_gif_to_ascii_frames
-            frame_data = convert_gif_to_ascii_frames(self.gif_path, self.columns, self.char_set)
-            frames = [f[0] for f in frame_data]
-            delays = [int(f[1] * 1000) for f in frame_data]  # Convert to milliseconds
+        try:
+            frames = []
+            delays = []
+            
+            with Image.open(self.gif_path) as gif:
+                frame_index = 0
+                total_frames = 0
+                
+                # Count total frames
+                try:
+                    while True:
+                        gif.seek(total_frames)
+                        total_frames += 1
+                except EOFError:
+                    pass
+                
+                gif.seek(0)
+                
+                # Process each frame
+                for frame_index in range(total_frames):
+                    gif.seek(frame_index)
+                    
+                    # Get frame delay
+                    delay = gif.info.get('duration', 100)
+                    
+                    # Convert frame
+                    frame_img = gif.convert('RGB')
+                    
+                    # Apply adjustments
+                    frame_img = ImageAdjustments.apply_all_adjustments(
+                        frame_img,
+                        brightness=self.brightness,
+                        contrast=self.contrast,
+                        invert=self.invert
+                    )
+                    
+                    # Convert to ASCII
+                    if self.char_set:
+                        ascii_frame = convert_image_to_ascii_custom(frame_img, self.columns, self.char_set)
+                    else:
+                        from converter import convert_image_to_ascii
+                        # Save temp for ascii_magic
+                        import tempfile
+                        tmp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
+                        tmp_path = tmp.name
+                        tmp.close()  # VAŽNO: zatvori prije nego što koristiš fajl
+
+                        try:
+                            frame_img.save(tmp_path, 'PNG')
+                            ascii_frame = convert_image_to_ascii(tmp_path, columns=self.columns)
+                        finally:
+                            # Sigurno obriši
+                            if os.path.exists(tmp_path):
+                                try:
+                                    os.unlink(tmp_path)
+                                except:
+                                    pass
+                    
+                    if ascii_frame:
+                        frames.append(ascii_frame)
+                        delays.append(delay)
+                    
+                    # Emit progress
+                    self.progress.emit(frame_index + 1, total_frames)
             
             if frames:
-                # Emit progress manually
-                total = len(frames)
-                for i in range(total):
-                    self.progress.emit(i + 1, total)
                 self.finished.emit(frames, delays)
             else:
-                self.error.emit("Failed to convert GIF")
-        else:
-            frames, delays = self.converter.convert_gif(self.gif_path, self.columns)
-            
-            if frames:
-                self.finished.emit(frames, delays)
-            else:
-                self.error.emit("Failed to convert GIF")
+                self.error.emit("Failed to convert GIF frames")
+                
+        except Exception as e:
+            self.error.emit(f"GIF conversion error: {str(e)}")
 
 
 class CompactTextEdit(QTextEdit):
@@ -186,8 +240,12 @@ class MainWindow(QWidget):
         self.gif_player = GifPlayer()
         self.gif_player.frame_changed.connect(self.display_frame)
         
-        # Floating widget
-        self.floating_widget = None
+        # Floating widgets (multiple support)
+        self.floating_widgets = []
+        
+        # History manager
+        self.history_manager = HistoryManager()
+        self.history_panel = None
         
         # Main layout
         self.main_layout = QVBoxLayout()
@@ -226,6 +284,9 @@ class MainWindow(QWidget):
         
         # Ctrl+W - Open widget
         QShortcut(QKeySequence("Ctrl+W"), self).activated.connect(self.open_widget)
+        
+        # Ctrl+H - Open history
+        QShortcut(QKeySequence("Ctrl+H"), self).activated.connect(self.open_history)
         
         # Space - Play/Pause (only in GIF mode)
         QShortcut(QKeySequence("Space"), self).activated.connect(self.shortcut_play_pause)
@@ -725,6 +786,14 @@ class MainWindow(QWidget):
         self.widget_button.clicked.connect(self.open_widget)
         self.widget_button.setToolTip("Open floating widget (Ctrl+W)")
         
+        # History button - NEW
+        self.history_button = QPushButton("📚 HISTORY")
+        self.history_button.setObjectName("exportButton")
+        self.history_button.setMinimumHeight(28)
+        self.history_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.history_button.clicked.connect(self.open_history)
+        self.history_button.setToolTip("View conversion history (Ctrl+H)")
+        
         self.quit_button = QPushButton("✕ QUIT")
         self.quit_button.setObjectName("quitButton")
         self.quit_button.setMinimumHeight(28)
@@ -735,6 +804,7 @@ class MainWindow(QWidget):
         layout.addWidget(label)
         layout.addWidget(self.export_button)
         layout.addWidget(self.widget_button)
+        layout.addWidget(self.history_button)
         layout.addWidget(self.quit_button)
         
         box.setLayout(layout)
@@ -800,6 +870,8 @@ class MainWindow(QWidget):
         self.gif_controls_frame.hide()
         self.gif_player.pause()
         
+        self.last_loaded_file = file_path  # Store for history
+        
         self.load_button.setDisabled(True)
         self.export_button.setDisabled(True)
         self.text_area.clear()
@@ -844,6 +916,8 @@ class MainWindow(QWidget):
         self.is_gif_mode = True
         self.gif_controls_frame.show()
         
+        self.last_loaded_file = file_path  # Store for history
+        
         self.load_button.setDisabled(True)
         self.export_button.setDisabled(True)
         self.text_area.clear()
@@ -859,9 +933,21 @@ class MainWindow(QWidget):
         char_set = None
         if preset and preset != CharacterSet.DETAILED:
             char_set = CharacterSetManager.get_character_set(preset)
+        
+        # Get adjustments
+        brightness = self.brightness_slider.value()
+        contrast = self.contrast_slider.value()
+        invert = self.invert_checkbox.isChecked()
 
         self.gif_thread = QThread()
-        self.gif_worker = GifWorker(file_path, columns, char_set)
+        self.gif_worker = GifWorker(
+            file_path,
+            columns,
+            char_set,
+            brightness,
+            contrast,
+            invert
+        )
         self.gif_worker.moveToThread(self.gif_thread)
         
         self.gif_thread.started.connect(self.gif_worker.run)
@@ -893,6 +979,26 @@ class MainWindow(QWidget):
         
         # Show first frame
         self.text_area.append_ansi_text(frames[0])
+        
+        # Add to history
+        if hasattr(self, 'last_loaded_file'):
+            settings = {
+                'width': self.width_slider.value(),
+                'char_set': self.charset_combo.currentText(),
+                'brightness': self.brightness_slider.value(),
+                'contrast': self.contrast_slider.value(),
+                'invert': self.invert_checkbox.isChecked()
+            }
+            
+            self.history_manager.add_entry(
+                file_name=os.path.basename(self.last_loaded_file),
+                file_path=self.last_loaded_file,
+                ascii_result=frames[0],
+                is_gif=True,
+                settings=settings,
+                frames=None,  # Don't save frames (too large)
+                delays=delays
+            )
         
         # Auto-play
         self.gif_player.play()
@@ -934,6 +1040,25 @@ class MainWindow(QWidget):
         if not ascii_result.startswith("Error"):
             self.export_button.setDisabled(False)
             self.widget_button.setDisabled(False)
+            
+            # Add to history
+            if hasattr(self, 'last_loaded_file'):
+                settings = {
+                    'width': self.width_slider.value(),
+                    'char_set': self.charset_combo.currentText(),
+                    'brightness': self.brightness_slider.value(),
+                    'contrast': self.contrast_slider.value(),
+                    'invert': self.invert_checkbox.isChecked(),
+                    'remove_bg': self.bg_checkbox.isChecked()
+                }
+                
+                self.history_manager.add_entry(
+                    file_name=os.path.basename(self.last_loaded_file),
+                    file_path=self.last_loaded_file,
+                    ascii_result=ascii_result,
+                    is_gif=False,
+                    settings=settings
+                )
 
     def on_export(self):
         """Export ASCII art"""
@@ -1008,24 +1133,65 @@ class MainWindow(QWidget):
                     self.text_area.insertPlainText(f"\n\n// ERROR: {e}")
     
     def open_widget(self):
-        """Open floating widget with current ASCII art"""
-        if self.floating_widget is None:
-            self.floating_widget = FloatingAsciiWidget()
+        """Open NEW floating widget with current ASCII art (multiple widgets support)"""
+        # Create new widget instance
+        widget = FloatingAsciiWidget()
         
         # Set content based on mode
         if self.is_gif_mode and self.gif_player.frames:
             # Animated GIF
-            self.floating_widget.set_animation(
+            widget.set_animation(
                 self.gif_player.frames,
                 self.gif_player.delays
             )
         elif self.last_ascii_result:
             # Static image
-            self.floating_widget.set_ascii_text(self.last_ascii_result)
+            widget.set_ascii_text(self.last_ascii_result)
         
-        self.floating_widget.show()
-        self.floating_widget.raise_()
-        self.floating_widget.activateWindow()
+        # Add to list
+        self.floating_widgets.append(widget)
+        
+        # Remove from list when closed
+        widget.destroyed.connect(lambda: self.on_widget_closed(widget))
+        
+        # Show widget
+        widget.show()
+        widget.raise_()
+        widget.activateWindow()
+    
+    def on_widget_closed(self, widget):
+        """Handle widget closing"""
+        if widget in self.floating_widgets:
+            self.floating_widgets.remove(widget)
+    
+    def open_history(self):
+        """Open history/gallery panel"""
+        if self.history_panel is None or not self.history_panel.isVisible():
+            self.history_panel = HistoryPanel(self.history_manager, self)
+            self.history_panel.entry_selected.connect(self.on_history_entry_selected)
+        
+        self.history_panel.show()
+        self.history_panel.raise_()
+        self.history_panel.activateWindow()
+    
+    def on_history_entry_selected(self, entry):
+        """Handle history entry selection"""
+        # Check if should open in widget
+        if hasattr(entry, 'open_in_widget') and entry.open_in_widget:
+            # Open in new widget
+            widget = FloatingAsciiWidget()
+            widget.set_ascii_text(entry.ascii_result)
+            self.floating_widgets.append(widget)
+            widget.destroyed.connect(lambda: self.on_widget_closed(widget))
+            widget.show()
+            widget.raise_()
+            widget.activateWindow()
+        else:
+            # Load into main window
+            self.text_area.append_ansi_text(entry.ascii_result)
+            self.last_ascii_result = entry.ascii_result
+            self.export_button.setDisabled(False)
+            self.widget_button.setDisabled(False)
 
 
 def main():
