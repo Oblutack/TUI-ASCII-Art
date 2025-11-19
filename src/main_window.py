@@ -25,13 +25,14 @@ from character_sets import CharacterSet, CharacterSetManager
 from image_adjustments import ImageAdjustments
 from history_manager import HistoryManager
 from history_panel import HistoryPanel
+from settings_manager import SettingsManager, AspectRatioMode
 from styles.compact_theme import COMPACT_THEME, get_compact_font, CompactColors
 
 
 class Worker(QObject):
     finished = pyqtSignal(str)
 
-    def __init__(self, file_path, columns, remove_bg, char_set=None, brightness=0, contrast=100, invert=False):
+    def __init__(self, file_path, columns, remove_bg, char_set=None, brightness=0, contrast=100, invert=False, aspect_ratio='original'):
         super().__init__()
         self.file_path = file_path
         self.columns = columns
@@ -40,6 +41,7 @@ class Worker(QObject):
         self.brightness = brightness
         self.contrast = contrast
         self.invert = invert
+        self.aspect_ratio = aspect_ratio
 
     def run(self):
         try:
@@ -53,6 +55,19 @@ class Worker(QObject):
                 processed_image = remove_background_from_image(self.file_path)
                 if processed_image:
                     img = processed_image
+            
+            # Apply aspect ratio
+            if self.aspect_ratio != 'original':
+                ratio = AspectRatioMode.get_ratio(self.aspect_ratio)
+                if ratio > 0:
+                    current_ratio = img.width / img.height
+                    if abs(current_ratio - ratio) > 0.1:  # If different enough
+                        if ratio > current_ratio:  # Need wider
+                            new_width = int(img.height * ratio)
+                            img = img.resize((new_width, img.height), Image.Resampling.LANCZOS)
+                        else:  # Need taller
+                            new_height = int(img.width / ratio)
+                            img = img.resize((img.width, new_height), Image.Resampling.LANCZOS)
             
             # Apply adjustments
             img = ImageAdjustments.apply_all_adjustments(
@@ -82,7 +97,7 @@ class GifWorker(QObject):
     finished = pyqtSignal(list, list)
     error = pyqtSignal(str)
 
-    def __init__(self, gif_path, columns, char_set=None, brightness=0, contrast=100, invert=False):
+    def __init__(self, gif_path, columns, char_set=None, brightness=0, contrast=100, invert=False, aspect_ratio='original'):
         super().__init__()
         self.gif_path = gif_path
         self.columns = columns
@@ -90,6 +105,7 @@ class GifWorker(QObject):
         self.brightness = brightness
         self.contrast = contrast
         self.invert = invert
+        self.aspect_ratio = aspect_ratio
         self.converter = GifConverter()
 
     def run(self):
@@ -123,6 +139,19 @@ class GifWorker(QObject):
                     # Convert frame
                     frame_img = gif.convert('RGB')
                     
+                    # Apply aspect ratio
+                    if self.aspect_ratio != 'original':
+                        ratio = AspectRatioMode.get_ratio(self.aspect_ratio)
+                        if ratio > 0:
+                            current_ratio = frame_img.width / frame_img.height
+                            if abs(current_ratio - ratio) > 0.1:
+                                if ratio > current_ratio:
+                                    new_width = int(frame_img.height * ratio)
+                                    frame_img = frame_img.resize((new_width, frame_img.height), Image.Resampling.LANCZOS)
+                                else:
+                                    new_height = int(frame_img.width / ratio)
+                                    frame_img = frame_img.resize((frame_img.width, new_height), Image.Resampling.LANCZOS)
+                    
                     # Apply adjustments
                     frame_img = ImageAdjustments.apply_all_adjustments(
                         frame_img,
@@ -136,17 +165,17 @@ class GifWorker(QObject):
                         ascii_frame = convert_image_to_ascii_custom(frame_img, self.columns, self.char_set)
                     else:
                         from converter import convert_image_to_ascii
-                        # Save temp for ascii_magic
                         import tempfile
+                        
+                        # Create temp file
                         tmp = tempfile.NamedTemporaryFile(suffix='.png', delete=False)
                         tmp_path = tmp.name
-                        tmp.close()  # VAŽNO: zatvori prije nego što koristiš fajl
-
+                        tmp.close()
+                        
                         try:
                             frame_img.save(tmp_path, 'PNG')
                             ascii_frame = convert_image_to_ascii(tmp_path, columns=self.columns)
                         finally:
-                            # Sigurno obriši
                             if os.path.exists(tmp_path):
                                 try:
                                     os.unlink(tmp_path)
@@ -246,6 +275,9 @@ class MainWindow(QWidget):
         # History manager
         self.history_manager = HistoryManager()
         self.history_panel = None
+        
+        # Settings manager
+        self.settings_manager = SettingsManager()
         
         # Main layout
         self.main_layout = QVBoxLayout()
@@ -744,9 +776,41 @@ class MainWindow(QWidget):
         self.width_slider.setMinimumHeight(22)
         self.width_slider.valueChanged.connect(self.update_width_label)
         
+        # Aspect ratio combo
+        aspect_label = QLabel("Ratio:")
+        aspect_label.setStyleSheet(f"color: {CompactColors.TEXT_SECONDARY}; font-size: 9pt;")
+        
+        self.aspect_combo = QComboBox()
+        self.aspect_combo.setMinimumHeight(24)
+        self.aspect_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: rgba(48, 41, 47, 240);
+                color: {CompactColors.TEXT_PRIMARY};
+                border: 2px solid {CompactColors.VINTAGE_GRAPE};
+                padding: 4px;
+                font-size: 9pt;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+                width: 20px;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: rgba(48, 41, 47, 250);
+                color: {CompactColors.TEXT_PRIMARY};
+                selection-background-color: {CompactColors.DUSTY_GRAPE};
+            }}
+        """)
+        
+        for mode in AspectRatioMode.get_all_modes():
+            display_name = AspectRatioMode.get_display_name(mode)
+            self.aspect_combo.addItem(display_name, mode)
+        
         layout.addWidget(label)
         layout.addLayout(width_header)
         layout.addWidget(self.width_slider)
+        layout.addSpacing(4)
+        layout.addWidget(aspect_label)
+        layout.addWidget(self.aspect_combo)
         
         box.setLayout(layout)
         return box
@@ -838,6 +902,71 @@ class MainWindow(QWidget):
         display_frame.setLayout(display_layout)
         self.main_layout.addWidget(display_frame, stretch=1)
 
+    def load_settings(self):
+        """Load saved settings"""
+        # Main controls
+        self.width_slider.setValue(self.settings_manager.get('width', 120))
+        
+        # Character set
+        char_set = self.settings_manager.get('character_set', 'detailed')
+        for i in range(self.charset_combo.count()):
+            if self.charset_combo.itemData(i).value == char_set:
+                self.charset_combo.setCurrentIndex(i)
+                break
+        
+        # Adjustments
+        self.brightness_slider.setValue(self.settings_manager.get('brightness', 0))
+        self.contrast_slider.setValue(self.settings_manager.get('contrast', 100))
+        self.invert_checkbox.setChecked(self.settings_manager.get('invert', False))
+        self.bg_checkbox.setChecked(self.settings_manager.get('remove_background', False))
+        
+        # Aspect ratio
+        aspect_mode = self.settings_manager.get('aspect_ratio', 'original')
+        for i in range(self.aspect_combo.count()):
+            if self.aspect_combo.itemData(i) == aspect_mode:
+                self.aspect_combo.setCurrentIndex(i)
+                break
+        
+        # Window geometry
+        win_width = self.settings_manager.get('window_width', 800)
+        win_height = self.settings_manager.get('window_height', 550)
+        win_x = self.settings_manager.get('window_x', 100)
+        win_y = self.settings_manager.get('window_y', 100)
+        
+        self.setGeometry(win_x, win_y, win_width, win_height)
+    
+    def save_settings(self):
+        """Save current settings"""
+        # Main controls
+        self.settings_manager.set('width', self.width_slider.value())
+        
+        # Character set
+        preset = self.charset_combo.currentData()
+        if preset:
+            self.settings_manager.set('character_set', preset.value)
+        
+        # Adjustments
+        self.settings_manager.set('brightness', self.brightness_slider.value())
+        self.settings_manager.set('contrast', self.contrast_slider.value())
+        self.settings_manager.set('invert', self.invert_checkbox.isChecked())
+        self.settings_manager.set('remove_background', self.bg_checkbox.isChecked())
+        
+        # Aspect ratio
+        aspect_mode = self.aspect_combo.currentData()
+        if aspect_mode:
+            self.settings_manager.set('aspect_ratio', aspect_mode)
+        
+        # Window geometry
+        self.settings_manager.set('window_width', self.width())
+        self.settings_manager.set('window_height', self.height())
+        self.settings_manager.set('window_x', self.x())
+        self.settings_manager.set('window_y', self.y())
+    
+    def closeEvent(self, event):
+        """Handle window close - save settings"""
+        self.save_settings()
+        event.accept()
+    
     def update_width_label(self, value):
         self.width_label.setText(str(value))
 
@@ -890,6 +1019,9 @@ class MainWindow(QWidget):
         brightness = self.brightness_slider.value()
         contrast = self.contrast_slider.value()
         invert = self.invert_checkbox.isChecked()
+        
+        # Get aspect ratio
+        aspect_mode = self.aspect_combo.currentData()
 
         self.thread = QThread()
         self.worker = Worker(
@@ -899,7 +1031,8 @@ class MainWindow(QWidget):
             char_set=char_set,
             brightness=brightness,
             contrast=contrast,
-            invert=invert
+            invert=invert,
+            aspect_ratio=aspect_mode
         )
         self.worker.moveToThread(self.thread)
         
@@ -940,13 +1073,16 @@ class MainWindow(QWidget):
         invert = self.invert_checkbox.isChecked()
 
         self.gif_thread = QThread()
+        aspect_mode = self.aspect_combo.currentData()
+
         self.gif_worker = GifWorker(
             file_path,
             columns,
             char_set,
             brightness,
             contrast,
-            invert
+            invert,
+            aspect_mode
         )
         self.gif_worker.moveToThread(self.gif_thread)
         
@@ -1134,8 +1270,12 @@ class MainWindow(QWidget):
     
     def open_widget(self):
         """Open NEW floating widget with current ASCII art (multiple widgets support)"""
-        # Create new widget instance
-        widget = FloatingAsciiWidget()
+        # Get widget settings
+        font_size = self.settings_manager.get('widget_font_size', 9)
+        color_theme = self.settings_manager.get('widget_color_theme', 'grape')
+        
+        # Create new widget instance with settings
+        widget = FloatingAsciiWidget(font_size=font_size, color_theme=color_theme)
         
         # Set content based on mode
         if self.is_gif_mode and self.gif_player.frames:

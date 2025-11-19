@@ -5,10 +5,11 @@ Always-on-top, draggable, resizable window for displaying ASCII art
 """
 
 from PyQt6.QtWidgets import (QWidget, QVBoxLayout, QHBoxLayout, QTextEdit, 
-                             QPushButton, QLabel, QSlider, QFrame)
-from PyQt6.QtCore import Qt, QPoint, QTimer
+                             QPushButton, QLabel, QSlider, QFrame, QComboBox)
+from PyQt6.QtCore import Qt, QPoint, QTimer, QEvent
 from PyQt6.QtGui import QFont, QColor, QTextCursor
 from styles.compact_theme import get_compact_font, CompactColors
+from settings_manager import ColorTheme
 
 
 class FloatingAsciiWidget(QWidget):
@@ -25,14 +26,14 @@ class FloatingAsciiWidget(QWidget):
                     return True
         return super().eventFilter(obj, event)
     
-    def __init__(self, parent=None):
+    def __init__(self, parent=None, font_size=9, color_theme='grape'):
         super().__init__(parent)
         
         # Window flags for floating behavior
         self.setWindowFlags(
-            Qt.WindowType.Tool |  # Tool window (no taskbar entry)
-            Qt.WindowType.FramelessWindowHint |  # No title bar
-            Qt.WindowType.WindowStaysOnTopHint  # Always on top
+            Qt.WindowType.Tool |
+            Qt.WindowType.FramelessWindowHint |
+            Qt.WindowType.WindowStaysOnTopHint
         )
         
         # Semi-transparent background
@@ -49,6 +50,11 @@ class FloatingAsciiWidget(QWidget):
         
         # UI visibility state
         self.ui_visible = True
+        
+        # Customization - ENSURE THESE ARE SET BEFORE theme_colors
+        self.font_size = font_size
+        self.color_theme = color_theme
+        self.theme_colors = ColorTheme.get_theme(color_theme)
         
         # Animation state
         self.is_animated = False
@@ -123,7 +129,7 @@ class FloatingAsciiWidget(QWidget):
         title_bar.setStyleSheet(f"""
             QFrame {{
                 background-color: rgba(65, 63, 84, 255);
-                border-bottom: 2px solid {CompactColors.DUSTY_GRAPE};
+                border-bottom: 2px solid {self.theme_colors['border']};
                 padding: 6px;
             }}
         """)
@@ -137,7 +143,7 @@ class FloatingAsciiWidget(QWidget):
         title_label = QLabel("▌ASCII WIDGET")
         title_label.setStyleSheet(f"""
             QLabel {{
-                color: {CompactColors.DUSTY_GRAPE};
+                color: {self.theme_colors['border']};
                 font-weight: bold;
                 font-size: 10pt;
             }}
@@ -145,6 +151,66 @@ class FloatingAsciiWidget(QWidget):
         
         layout.addWidget(title_label)
         layout.addStretch()
+        
+        # Font size control
+        font_label = QLabel("📏")
+        font_label.setToolTip("Font Size")
+        
+        self.font_slider = QSlider(Qt.Orientation.Horizontal)
+        self.font_slider.setRange(6, 16)
+        self.font_slider.setValue(self.font_size)
+        self.font_slider.setMaximumWidth(60)
+        self.font_slider.valueChanged.connect(self.update_font_size)
+        self.font_slider.setStyleSheet(f"""
+            QSlider::groove:horizontal {{
+                background-color: rgba(48, 41, 47, 200);
+                height: 4px;
+                border-radius: 0px;
+            }}
+            QSlider::handle:horizontal {{
+                background-color: {self.theme_colors['accent']};
+                width: 10px;
+                height: 10px;
+                margin: -3px 0;
+                border-radius: 0px;
+            }}
+        """)
+        
+        layout.addWidget(font_label)
+        layout.addWidget(self.font_slider)
+        layout.addSpacing(8)
+        
+        # Color theme selector
+        self.theme_combo = QComboBox()
+        self.theme_combo.setMaximumWidth(100)
+        self.theme_combo.setStyleSheet(f"""
+            QComboBox {{
+                background-color: rgba(48, 41, 47, 200);
+                color: white;
+                border: 1px solid {self.theme_colors['border']};
+                padding: 2px 5px;
+                font-size: 8pt;
+            }}
+            QComboBox::drop-down {{
+                border: none;
+            }}
+            QComboBox QAbstractItemView {{
+                background-color: rgba(48, 41, 47, 250);
+                color: white;
+                selection-background-color: {self.theme_colors['accent']};
+            }}
+        """)
+        
+        for theme_key in ColorTheme.get_all_themes():
+            display_name = ColorTheme.get_display_name(theme_key)
+            self.theme_combo.addItem(display_name, theme_key)
+            if theme_key == self.color_theme:
+                self.theme_combo.setCurrentIndex(self.theme_combo.count() - 1)
+        
+        self.theme_combo.currentIndexChanged.connect(self.change_theme)
+        
+        layout.addWidget(self.theme_combo)
+        layout.addSpacing(8)
         
         # Opacity slider
         opacity_label = QLabel("👁")
@@ -162,7 +228,7 @@ class FloatingAsciiWidget(QWidget):
                 border-radius: 0px;
             }}
             QSlider::handle:horizontal {{
-                background-color: {CompactColors.DUSTY_GRAPE};
+                background-color: {self.theme_colors['accent']};
                 width: 12px;
                 height: 12px;
                 margin: -4px 0;
@@ -175,7 +241,7 @@ class FloatingAsciiWidget(QWidget):
         
         layout.addSpacing(8)
         
-        # Hide/Show UI button - MORE VISIBLE
+        # Hide/Show UI button
         self.hide_ui_btn = QPushButton("⬜ HIDE")
         self.hide_ui_btn.setFixedHeight(24)
         self.hide_ui_btn.setMinimumWidth(60)
@@ -183,16 +249,16 @@ class FloatingAsciiWidget(QWidget):
         self.hide_ui_btn.clicked.connect(self.toggle_ui_visibility)
         self.hide_ui_btn.setStyleSheet(f"""
             QPushButton {{
-                background-color: {CompactColors.DUSTY_GRAPE};
+                background-color: {self.theme_colors['accent']};
                 color: white;
-                border: 2px solid {CompactColors.GRAPE_LIGHT};
+                border: 2px solid {self.theme_colors['border']};
                 font-weight: bold;
                 font-size: 9pt;
                 padding: 2px 8px;
                 border-radius: 0px;
             }}
             QPushButton:hover {{
-                background-color: {CompactColors.GRAPE_LIGHT};
+                background-color: {self.theme_colors['border']};
                 border-color: white;
             }}
         """)
@@ -389,63 +455,127 @@ class FloatingAsciiWidget(QWidget):
         opacity = value / 100.0
         self.setWindowOpacity(opacity)
     
-    def toggle_ui_visibility(self):
-        """Toggle visibility of UI elements (title bar, controls)"""
-        self.ui_visible = not self.ui_visible
+    def update_font_size(self, size):
+            """Update font size"""
+            self.font_size = size
+            font = get_compact_font()
+            font.setPointSize(size)
+            self.text_display.setFont(font)
+
+    def change_theme(self, index):
+        """Change color theme"""
+        theme_key = self.theme_combo.itemData(index)
+        if theme_key:
+            self.color_theme = theme_key
+            self.theme_colors = ColorTheme.get_theme(theme_key)
+            self.apply_theme()
+
+    def apply_theme(self):
+        """Apply current color theme to UI"""
+        # Update container
+        container = self.findChild(QFrame)
+        if container:
+            container.setStyleSheet(f"""
+                QFrame {{
+                    background-color: {self.theme_colors['background']};
+                    border: 3px solid {self.theme_colors['border']};
+                    border-radius: 0px;
+                }}
+            """)
         
-        if self.ui_visible:
-            # Show UI - restore background
-            self.title_bar.show()
-            if self.is_animated:
-                self.control_bar.show()
-            self.resize_handle.show()
-            self.hide_ui_btn.setText("⬜ HIDE")
-            self.hide_ui_btn.setToolTip("Hide UI")
+        # Update text display
+        self.text_display.setStyleSheet(f"""
+            QTextEdit {{
+                background-color: {self.theme_colors['background']};
+                color: {self.theme_colors['text']};
+                border: none;
+                padding: 10px;
+            }}
+        """)
+        
+        # Re-display current content with new colors
+        if self.is_animated and self.animation_frames:
+            self._display_text(self.animation_frames[self.current_frame])
+        elif hasattr(self, '_current_text'):
+            self._display_text(self._current_text)
+
+    def eventFilter(self, obj, event):
+        """Filter events for text display viewport"""
+        if obj == self.text_display.viewport():
+            if event.type() == QEvent.Type.MouseButtonPress:
+                if not self.ui_visible:
+                    self.toggle_ui_visibility()
+                    return True
+        return super().eventFilter(obj, event)
+    
+    def toggle_ui_visibility(self):
+            """Toggle visibility of UI elements (title bar, controls)"""
+            self.ui_visible = not self.ui_visible
             
-            # Restore background for main container
-            self.findChild(QFrame).setStyleSheet(f"""
-                QFrame {{
-                    background-color: rgba(48, 41, 47, 240);
-                    border: 3px solid {CompactColors.DUSTY_GRAPE};
-                    border-radius: 0px;
-                }}
-            """)
-            
-            # Restore text display background
-            self.text_display.setStyleSheet(f"""
-                QTextEdit {{
-                    background-color: rgba(48, 41, 47, 250);
-                    color: {CompactColors.GRAPE_BRIGHT};
-                    border: none;
-                    padding: 10px;
-                    font-size: 9pt;
-                }}
-            """)
-        else:
-            # Hide UI - make transparent
-            self.title_bar.hide()
-            self.control_bar.hide()
-            self.resize_handle.hide()
-            
-            # Make main container transparent
-            self.findChild(QFrame).setStyleSheet(f"""
-                QFrame {{
-                    background-color: transparent;
-                    border: none;
-                    border-radius: 0px;
-                }}
-            """)
-            
-            # Make text display fully transparent
-            self.text_display.setStyleSheet(f"""
-                QTextEdit {{
-                    background-color: transparent;
-                    color: {CompactColors.GRAPE_BRIGHT};
-                    border: none;
-                    padding: 10px;
-                    font-size: 9pt;
-                }}
-            """)
+            if self.ui_visible:
+                # Show UI - restore background
+                self.title_bar.show()
+                if self.is_animated:
+                    self.control_bar.show()
+                self.resize_handle.show()
+                self.hide_ui_btn.setText("⬜ HIDE")
+                self.hide_ui_btn.setToolTip("Hide UI")
+                
+                # Restore background for main container
+                self.findChild(QFrame).setStyleSheet(f"""
+                    QFrame {{
+                        background-color: rgba(48, 41, 47, 240);
+                        border: 3px solid {CompactColors.DUSTY_GRAPE};
+                        border-radius: 0px;
+                    }}
+                """)
+                
+                # Restore text display background
+                self.text_display.setStyleSheet(f"""
+                    QTextEdit {{
+                        background-color: rgba(48, 41, 47, 250);
+                        color: {CompactColors.GRAPE_BRIGHT};
+                        border: none;
+                        padding: 10px;
+                        font-size: 9pt;
+                    }}
+                """)
+            else:
+                # Hide UI - make transparent
+                self.title_bar.hide()
+                self.control_bar.hide()
+                self.resize_handle.hide()
+                
+                # Make main container transparent
+                self.findChild(QFrame).setStyleSheet(f"""
+                    QFrame {{
+                        background-color: transparent;
+                        border: none;
+                        border-radius: 0px;
+                    }}
+                """)
+                
+                # Make text display fully transparent
+                self.text_display.setStyleSheet(f"""
+                    QTextEdit {{
+                        background-color: transparent;
+                        color: {CompactColors.GRAPE_BRIGHT};
+                        border: none;
+                        padding: 10px;
+                        font-size: 9pt;
+                    }}
+                """)
+                
+                # Make text display fully transparent
+                self.text_display.setStyleSheet(f"""
+                    QTextEdit {{
+                        background-color: transparent;
+                        color: {CompactColors.GRAPE_BRIGHT};
+                        border: none;
+                        padding: 10px;
+                        font-size: 9pt;
+                    }}
+                """)
     
     # Mouse events for dragging
     def mousePressEvent(self, event):
