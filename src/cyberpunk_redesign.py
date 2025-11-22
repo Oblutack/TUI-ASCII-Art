@@ -69,6 +69,8 @@ QFrame {{
     border: 2px solid {CyberpunkColors.CYAN};
     border-radius: 8px;
     padding: 12px;
+    min-width: 0px;
+    min-height: 0px;
 }}
 
 QFrame#titleFrame {{

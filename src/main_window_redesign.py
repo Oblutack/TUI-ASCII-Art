@@ -309,10 +309,25 @@ class MainWindow(QWidget):
         # Hide GIF controls initially
         self.gif_controls_frame.hide()
         
-        # Force layout calculation before fixing size
+        # Window dimensions
+        self.base_width = 1280
+        self.base_height = 780  # Increased for better playback controls fit
+        self.gif_controls_height = 80  # Additional height when GIF controls visible
+        
+        # Force complete layout calculation before setting size
         self.layout().activate()
+        self.updateGeometry()
         QApplication.processEvents()
-        self.setFixedSize(1280, 720)
+        
+        # Set initial size
+        self.resize(self.base_width, self.base_height)
+        
+        # Process layout and lock window size permanently
+        QApplication.processEvents()
+        self.layout().activate()
+        
+        # Lock window to fixed size - NEVER changes
+        self.setFixedSize(self.base_width, self.base_height)
     
     def setup_shortcuts(self):
         QShortcut(QKeySequence("Ctrl+O"), self).activated.connect(self.start_processing)
@@ -367,11 +382,12 @@ class MainWindow(QWidget):
         # Make title bar draggable
         self.title_frame.mousePressEvent = self.title_mouse_press
         self.title_frame.mouseMoveEvent = self.title_mouse_move
+        self.title_frame.mouseReleaseEvent = self.title_mouse_release
         self.title_frame.setCursor(Qt.CursorShape.SizeAllCursor)
         
         title_layout = QHBoxLayout()
-        title_layout.setContentsMargins(0, 0, 0, 4)
-        title_layout.setSpacing(6)
+        title_layout.setContentsMargins(16, 12, 16, 12)
+        title_layout.setSpacing(12)
         
         title_label = QLabel("ASCII GENERATOR")
         title_label.setObjectName("titleLabel")
@@ -402,6 +418,25 @@ class MainWindow(QWidget):
         """Handle title bar mouse move for dragging"""
         if event.buttons() == Qt.MouseButton.LeftButton and hasattr(self, 'drag_position'):
             self.move(event.globalPosition().toPoint() - self.drag_position)
+    
+    def title_mouse_release(self, event):
+        """Handle title bar mouse release for dragging"""
+        pass  # Just end drag
+    
+    def moveEvent(self, event):
+        """Override move event to prevent layout recalculation during move"""
+        # Block layout updates during move - just accept the event
+        super().moveEvent(event)
+    
+    def resize_for_gif(self, show_controls):
+        """Resize window when GIF controls are shown/hidden"""
+        if show_controls:
+            new_height = self.base_height + self.gif_controls_height
+        else:
+            new_height = self.base_height
+        
+        # Temporarily allow resize
+        self.setFixedSize(self.base_width, new_height)
 
     def create_main_grid(self):
         """Main grid layout - 2x2 grid on left (1/3 width), OUTPUT on right (2/3 width)"""
@@ -409,29 +444,40 @@ class MainWindow(QWidget):
         main_horizontal.setSpacing(12)
         main_horizontal.setContentsMargins(0, 0, 0, 0)
         
-        # LEFT SIDE - 2x2 Grid (INPUT, WIDTH, STYLE, ACTIONS)
+        # LEFT SIDE - 2x2 Grid with FIXED sizes to prevent flickering
         left_container = QWidget()
-        left_grid = QGridLayout()
-        left_grid.setSpacing(8)
-        left_grid.setContentsMargins(0, 0, 0, 0)
+        left_container.setFixedWidth(416)  # Fixed width for left side (2 * 200 + 16 spacing)
         
-        # Row 0: INPUT (col 0) | WIDTH (col 1)
-        left_grid.addWidget(self.create_input_box(), 0, 0)
-        left_grid.addWidget(self.create_width_box(), 0, 1)
+        # Use VBox with two HBox rows instead of QGridLayout (more stable)
+        left_layout = QVBoxLayout()
+        left_layout.setSpacing(8)
+        left_layout.setContentsMargins(0, 0, 0, 0)
         
-        # Row 1: STYLE (col 0) | ACTIONS (col 1)
-        left_grid.addWidget(self.create_style_box(), 1, 0)
-        left_grid.addWidget(self.create_actions_box(), 1, 1)
+        # Row 0: INPUT | WIDTH
+        row0 = QHBoxLayout()
+        row0.setSpacing(8)
+        input_box = self.create_input_box()
+        width_box = self.create_width_box()
+        input_box.setFixedWidth(204)
+        width_box.setFixedWidth(204)
+        row0.addWidget(input_box)
+        row0.addWidget(width_box)
         
-        # Make columns equal width
-        left_grid.setColumnStretch(0, 1)
-        left_grid.setColumnStretch(1, 1)
+        # Row 1: STYLE | ACTIONS
+        row1 = QHBoxLayout()
+        row1.setSpacing(8)
+        style_box = self.create_style_box()
+        actions_box = self.create_actions_box()
+        style_box.setFixedWidth(204)
+        actions_box.setFixedWidth(204)
+        row1.addWidget(style_box)
+        row1.addWidget(actions_box)
         
-        # Make row 0 and row 1 equal height
-        left_grid.setRowStretch(0, 1)
-        left_grid.setRowStretch(1, 1)
+        left_layout.addLayout(row0)
+        left_layout.addLayout(row1)
+        left_layout.addStretch()
         
-        left_container.setLayout(left_grid)
+        left_container.setLayout(left_layout)
         
         # RIGHT SIDE - OUTPUT (2/3 width)
         right_container = QWidget()
@@ -501,6 +547,7 @@ class MainWindow(QWidget):
         layout.addWidget(self.bg_checkbox)
         
         box.setLayout(layout)
+        box.setFixedHeight(280)  # Fixed height to prevent resize
         return box
 
     def create_width_box(self):
@@ -559,6 +606,7 @@ class MainWindow(QWidget):
         layout.addWidget(self.aspect_combo)
         
         box.setLayout(layout)
+        box.setFixedHeight(280)  # Fixed height to prevent resize
         return box
 
     def create_style_box(self):
@@ -608,6 +656,7 @@ class MainWindow(QWidget):
         layout.addWidget(self.charset_preview)
         
         box.setLayout(layout)
+        box.setFixedHeight(280)  # Fixed height to prevent resize
         return box
 
     def create_actions_box(self):
@@ -724,6 +773,7 @@ class MainWindow(QWidget):
         layout.addWidget(self.quit_button)
         
         box.setLayout(layout)
+        box.setFixedHeight(280)  # Fixed height to prevent resize
         return box
 
     def create_output_box(self):
@@ -762,8 +812,8 @@ class MainWindow(QWidget):
         box.setObjectName("adjustmentsBox")
         
         layout = QHBoxLayout()
-        layout.setSpacing(8) 
-        layout.setContentsMargins(12, 8, 12, 8) 
+        layout.setSpacing(12) 
+        layout.setContentsMargins(16, 12, 16, 12) 
         
         label = QLabel("ADJUSTMENTS")
         label.setObjectName("sectionLabel")
@@ -791,7 +841,7 @@ class MainWindow(QWidget):
         self.brightness_slider = QSlider(Qt.Orientation.Horizontal)
         self.brightness_slider.setRange(-100, 100)
         self.brightness_slider.setValue(0)
-        self.brightness_slider.setMinimumWidth(90)
+        self.brightness_slider.setMinimumWidth(150)
         self.brightness_slider.valueChanged.connect(self.update_brightness_label)
         
         bright_layout.addLayout(bright_header)
@@ -813,7 +863,7 @@ class MainWindow(QWidget):
         self.contrast_slider = QSlider(Qt.Orientation.Horizontal)
         self.contrast_slider.setRange(25, 200)
         self.contrast_slider.setValue(100)
-        self.contrast_slider.setMinimumWidth(90)
+        self.contrast_slider.setMinimumWidth(150)
         self.contrast_slider.valueChanged.connect(self.update_contrast_label)
         
         contrast_layout.addLayout(contrast_header)
@@ -845,46 +895,50 @@ class MainWindow(QWidget):
         """)
         
         layout = QHBoxLayout()
-        layout.setSpacing(4) 
-        layout.setContentsMargins(8, 6, 8, 6) 
+        layout.setSpacing(12) 
+        layout.setContentsMargins(16, 10, 16, 10) 
         
         label = QLabel("PLAYBACK")
         label.setObjectName("sectionLabel")
         
         self.play_button = QPushButton("▶ PLAY")
-        self.play_button.setMinimumHeight(26)
+        self.play_button.setMinimumHeight(32)
+        self.play_button.setMinimumWidth(80)
         self.play_button.clicked.connect(self.toggle_playback)
         
         self.stop_button = QPushButton("■ STOP")
-        self.stop_button.setMinimumHeight(26)
+        self.stop_button.setMinimumHeight(32)
+        self.stop_button.setMinimumWidth(80)
         self.stop_button.clicked.connect(self.stop_animation)
         
         speed_label = QLabel("Speed:")
+        speed_label.setStyleSheet(f"color: {CyberpunkColors.TEXT_SECONDARY};")
+        
         self.speed_slider = QSlider(Qt.Orientation.Horizontal)
         self.speed_slider.setRange(25, 400)
         self.speed_slider.setValue(100)
-        self.speed_slider.setMinimumWidth(100)
+        self.speed_slider.setMinimumWidth(150)
         self.speed_slider.valueChanged.connect(self.update_speed)
         
         self.speed_label = QLabel("1.0x")
-        self.speed_label.setStyleSheet(f"color: {CyberpunkColors.CYAN}; font-weight: 600; min-width: 40px;")
+        self.speed_label.setStyleSheet(f"color: {CyberpunkColors.CYAN}; font-weight: 600; min-width: 50px;")
         
         self.loop_checkbox = QCheckBox("LOOP")
         self.loop_checkbox.setChecked(True)
         self.loop_checkbox.toggled.connect(self.gif_player.set_looping)
         
         self.frame_label = QLabel("Frame: 0/0")
-        self.frame_label.setStyleSheet(f"color: {CyberpunkColors.TEXT_SECONDARY};")
+        self.frame_label.setStyleSheet(f"color: {CyberpunkColors.TEXT_SECONDARY}; min-width: 80px;")
         
         layout.addWidget(label)
-        layout.addSpacing(8)
+        layout.addSpacing(12)
         layout.addWidget(self.play_button)
         layout.addWidget(self.stop_button)
-        layout.addSpacing(16)
+        layout.addSpacing(20)
         layout.addWidget(speed_label)
         layout.addWidget(self.speed_slider)
         layout.addWidget(self.speed_label)
-        layout.addSpacing(16)
+        layout.addSpacing(20)
         layout.addWidget(self.loop_checkbox)
         layout.addStretch()
         layout.addWidget(self.frame_label)
@@ -938,7 +992,12 @@ class MainWindow(QWidget):
 
     def load_image(self, file_path):
         self.is_gif_mode = False
-        self.gif_controls_frame.hide()
+        
+        # Hide GIF controls and resize back
+        if self.gif_controls_frame.isVisible():
+            self.gif_controls_frame.hide()
+            self.resize_for_gif(False)
+        
         self.gif_player.pause()
         
         self.last_loaded_file = file_path
@@ -1041,6 +1100,10 @@ class MainWindow(QWidget):
         self.load_button.setDisabled(False)
         self.export_button.setDisabled(False)
         self.widget_button.setDisabled(False)
+        
+        # Show GIF controls and resize window
+        self.gif_controls_frame.show()
+        self.resize_for_gif(True)
         
         total_frames = len(frames)
         self.frame_label.setText(f"Frame: 1/{total_frames}")
