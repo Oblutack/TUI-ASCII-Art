@@ -5,42 +5,43 @@ Dark theme with neon borders and glow effects
 
 from PyQt6.QtGui import QFont, QFontDatabase
 
-# Color Palette from Figma
+# Color Palette from Figma - EXACT SPEC
 class CyberpunkColors:
-    """Cyberpunk color scheme"""
+    """Cyberpunk color scheme - Figma specified"""
     
-    # Backgrounds
-    BG_DARK = "#0a0e1a"           # Main background
-    BG_PANEL = "#12172b"          # Panel backgrounds
-    BG_INPUT = "#1a1f35"          # Input fields
+    # Backgrounds (Figma spec)
+    BG_DARK = "#0a0e1a"           # --tui-bg (main background)
+    BG_PANEL = "#151924"          # --tui-surface (panels/cards)
+    BG_INPUT = "#0a0e1a"          # Same as BG_DARK for inputs
+    BG_BORDER = "#2d3548"         # --tui-border
     
-    # Neon Borders (matching Figma)
-    CYAN = "#00d9ff"              # INPUT, ADJUSTMENTS
-    MAGENTA = "#ff006e"           # WIDTH
-    PURPLE = "#b794f6"            # STYLE
-    GREEN = "#00ff88"             # ACTIONS
-    BLUE_PURPLE = "#8b5cf6"       # OUTPUT
+    # Accent colors - DARKENED (Figma spec)
+    CYAN = "#0099b3"              # --tui-cyan (INPUT, ADJUSTMENTS)
+    MAGENTA = "#b30057"           # --tui-pink (WIDTH)
+    PURPLE = "#7c3aed"            # --tui-purple (STYLE, OUTPUT)
+    GREEN = "#00b359"             # --tui-green (ACTIONS)
+    BLUE_PURPLE = "#7c3aed"       # Same as PURPLE
     
-    # Text colors
-    TEXT_PRIMARY = "#e0e0e0"      # Main text
-    TEXT_SECONDARY = "#a0aec0"    # Secondary text
-    TEXT_DIM = "#6b7280"          # Dimmed text
-    TEXT_CYAN = "#00d9ff"         # Cyan accents
+    # Text colors (Figma spec)
+    TEXT_PRIMARY = "#c5d1de"      # --tui-text (main text)
+    TEXT_SECONDARY = "#6b7a8f"    # --tui-text-dim (dimmed text)
+    TEXT_DIM = "#6b7a8f"          # Same as TEXT_SECONDARY
+    TEXT_CYAN = "#0099b3"         # Cyan accents
     
     # Button colors
-    BTN_SAVE = "#ff006e"          # Save button
-    BTN_WINDOW = "#8b5cf6"        # Window button
-    BTN_HISTORY = "#3b82f6"       # History button
-    BTN_QUIT = "#ef4444"          # Quit button
+    BTN_SAVE = "#b30057"          # Pink (destructive)
+    BTN_WINDOW = "#7c3aed"        # Purple
+    BTN_HISTORY = "#0099b3"       # Cyan
+    BTN_QUIT = "#b30057"          # Pink (destructive)
     
     # Slider colors
-    SLIDER_CYAN = "#00d9ff"       # Cyan glow
-    SLIDER_TRACK = "#1e293b"     # Track background
+    SLIDER_CYAN = "#0099b3"       # Cyan
+    SLIDER_TRACK = "#2d3548"      # Border color
     
     # Special effects
-    GLOW_CYAN = "rgba(0, 217, 255, 0.4)"
-    GLOW_MAGENTA = "rgba(255, 0, 110, 0.4)"
-    GLOW_PURPLE = "rgba(183, 148, 246, 0.4)"
+    GLOW_CYAN = "rgba(0, 153, 179, 0.4)"
+    GLOW_MAGENTA = "rgba(179, 0, 87, 0.4)"
+    GLOW_PURPLE = "rgba(124, 58, 237, 0.4)"
 
 
 CYBERPUNK_THEME = f"""
@@ -153,6 +154,42 @@ QLabel#hintLabel {{
     color: {CyberpunkColors.TEXT_DIM};
     font-size: 9pt;
     font-style: italic;
+}}
+
+/* ============================
+   WINDOW CONTROLS - Custom Minimize/Close
+   ============================ */
+
+QPushButton#minimizeButton {{
+    background-color: transparent;
+    color: {CyberpunkColors.TEXT_SECONDARY};
+    border: 1px solid {CyberpunkColors.TEXT_DIM};
+    border-radius: 4px;
+    font-size: 14pt;
+    font-weight: 300;
+    padding: 0px;
+}}
+
+QPushButton#minimizeButton:hover {{
+    background-color: rgba(255, 255, 255, 0.1);
+    color: {CyberpunkColors.CYAN};
+    border-color: {CyberpunkColors.CYAN};
+}}
+
+QPushButton#closeButton {{
+    background-color: transparent;
+    color: {CyberpunkColors.TEXT_SECONDARY};
+    border: 1px solid {CyberpunkColors.TEXT_DIM};
+    border-radius: 4px;
+    font-size: 12pt;
+    font-weight: 300;
+    padding: 0px;
+}}
+
+QPushButton#closeButton:hover {{
+    background-color: rgba(239, 68, 68, 0.2);
+    color: #ef4444;
+    border-color: #ef4444;
 }}
 
 /* ============================
